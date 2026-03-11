@@ -145,6 +145,8 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
       const { data, error } = await supabase.from("orders").insert({
         // ✅ FIX: user_id so each user sees only their orders
         user_id: user?.id || null,
+        customer_name: user?.name || user?.firstName || "",
+        customer_phone: user?.phone || "",
         // ✅ FIX: restaurant_name for display in OrdersPage
         restaurant_name: restaurantName,
         items: cart,

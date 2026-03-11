@@ -28,7 +28,7 @@ export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, g
     <div style={{ fontFamily: "Arial,sans-serif", background: "#F7F7F8", minHeight: "100vh", maxWidth: 430, margin: "0 auto", direction: "rtl", paddingBottom: 80 }}>
       <div style={{ background: "linear-gradient(160deg,#C8102E,#9B0B22)", padding: "60px 20px 80px", position: "relative", overflow: "hidden", textAlign: "center" }}>
         <div style={{ position: "absolute", bottom: -30, left: 0, right: 0, height: 60, background: "#F7F7F8", borderRadius: "50% 50% 0 0" }} />
-        <div style={{ width: 68, height: 68, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 12px", border: "2.5px solid rgba(255,255,255,0.4)" }}<IcoUser s={30} c="white"/></div>
+        <div style={{ width: 68, height: 68, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 12px", border: "2.5px solid rgba(255,255,255,0.4)" }}><IcoUser s={30} c="white"/></div>
         <div style={{ color: "white", fontSize: 20, fontWeight: 900 }}>אורח</div>
         <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, marginTop: 4 }}>אינך מחובר</div>
       </div>

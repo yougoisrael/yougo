@@ -34,7 +34,7 @@ export default function SupportPage({ user }) {
       {/* Header */}
       <div style={{ background: "linear-gradient(160deg,#C8102E,#9B0B22)", padding: "44px 20px 60px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", bottom: -30, left: 0, right: 0, height: 60, background: C.bg, borderRadius: "50% 50% 0 0" }} />
-        <button onClick={() => navigate("/profile")}
+        <button onClick={() => navigate(-1)}
           style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", marginBottom: 14 }}>
           <IcoBack s={18} c="white" />
         </button>

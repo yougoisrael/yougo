@@ -31,15 +31,15 @@ export default function BottomNav({ cartCount }) {
   return (
     <>
       {/* Spacer עשה מקום للـ nav */}
-      <div style={{ height: 70 }} />
+      <div style={{ height: 80 }} />
 
       <div style={{
         position: "fixed",
         bottom: 0,
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: "100%",
+        left: 0,
+        right: 0,
         maxWidth: 430,
+        margin: "0 auto",
         background: "white",
         borderTop: "1px solid #F0F0F0",
         display: "flex",
@@ -47,7 +47,6 @@ export default function BottomNav({ cartCount }) {
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
         zIndex: 150,
         boxShadow: "0 -4px 24px rgba(0,0,0,0.08)",
-        // Glass effect
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}>

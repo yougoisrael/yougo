@@ -175,56 +175,59 @@ export default function MarketPage({ cartCount, user }) {
   );
 
   return (
-    <div className="page-enter" style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", overflowX:"hidden", paddingBottom:90, paddingTop:62 }}>
+    <div className="page-enter" style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", overflowX:"hidden", paddingBottom:90, paddingTop:106 }}>
       <Sidebar/>
 
-      {/* TOP BAR */}
-      <div style={{ background:C.white, padding:"10px 16px", display:"flex", alignItems:"center", gap:10, width:"100%", maxWidth:430, position:"fixed", top:0, zIndex:100, boxShadow:"0 1px 8px rgba(0,0,0,0.06)" }}>
-        {searchOpen ? (
-          <div style={{ flex:1, display:"flex", gap:8, alignItems:"center" }}>
-            <input autoFocus value={searchQ} onChange={e => setSearchQ(e.target.value)}
-              placeholder="חיפוש חנות..."
-              style={{ flex:1, border:"1.5px solid "+C.lightGray, borderRadius:24, padding:"8px 14px", fontSize:13, outline:"none", background:C.bg, direction:"rtl" }}/>
-            <button onClick={() => { setSearchOpen(false); setSearchQ(""); }}
-              style={{ background:C.bg, border:"none", borderRadius:"50%", width:34, height:34, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <IcoClose/>
-            </button>
-          </div>
-        ) : (
-          <>
-            <button onClick={() => setSearchOpen(true)} style={{ background:"none", border:"none", cursor:"pointer", padding:4, display:"flex" }}>
-              <IcoSearch/>
-            </button>
-            <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, background:C.bg, borderRadius:24, padding:"7px 14px", cursor:"pointer" }}>
-              <IcoHome s={18} c={C.red}/>
-              <div style={{ flex:1, textAlign:"right" }}>
-                <div style={{ fontSize:12, fontWeight:700, color:C.dark }}>בית</div>
-                <div style={{ fontSize:10, color:C.gray }}>ראמה, ישראל</div>
-              </div>
-              <IcoChevDown/>
+      {/* FIXED HEADER — TopBar + TABS */}
+      <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:430, zIndex:100, background:"white", boxShadow:"0 2px 10px rgba(0,0,0,0.07)" }}>
+        {/* TOP BAR */}
+        <div style={{ padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
+          {searchOpen ? (
+            <div style={{ flex:1, display:"flex", gap:8, alignItems:"center" }}>
+              <input autoFocus value={searchQ} onChange={e => setSearchQ(e.target.value)}
+                placeholder="חיפוש חנות..."
+                style={{ flex:1, border:"1.5px solid "+C.lightGray, borderRadius:24, padding:"8px 14px", fontSize:13, outline:"none", background:C.bg, direction:"rtl" }}/>
+              <button onClick={() => { setSearchOpen(false); setSearchQ(""); }}
+                style={{ background:C.bg, border:"none", borderRadius:"50%", width:34, height:34, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <IcoClose/>
+              </button>
             </div>
-            <button onClick={() => setSidebarOpen(true)} style={{ background:C.bg, border:"none", borderRadius:12, width:38, height:38, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="#111827" strokeWidth="2" strokeLinecap="round"/></svg>
-            </button>
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              <button onClick={() => setSearchOpen(true)} style={{ background:"none", border:"none", cursor:"pointer", padding:4, display:"flex" }}>
+                <IcoSearch/>
+              </button>
+              <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, background:C.bg, borderRadius:24, padding:"7px 14px", cursor:"pointer" }}>
+                <IcoHome s={18} c={C.red}/>
+                <div style={{ flex:1, textAlign:"right" }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:C.dark }}>בית</div>
+                  <div style={{ fontSize:10, color:C.gray }}>ראמה, ישראל</div>
+                </div>
+                <IcoChevDown/>
+              </div>
+              <button onClick={() => setSidebarOpen(true)} style={{ background:C.bg, border:"none", borderRadius:12, width:38, height:38, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="#111827" strokeWidth="2" strokeLinecap="round"/></svg>
+              </button>
+            </>
+          )}
+        </div>
 
-      {/* TABS */}
-      <div style={{ background:C.white, display:"flex", borderBottom:"1px solid "+C.lightGray }}>
-        {[
-          { id:"restaurants", label:"מסעדות", I:IcoFork },
-          { id:"market",      label:"מרקט",   I:IcoStore },
-        ].map(t => {
-          const active = t.id === "market";
-          return (
-            <button key={t.id}
-              onClick={() => t.id === "restaurants" && navigate("/")}
-              style={{ flex:1, background:"none", border:"none", padding:"11px 0 8px", fontSize:13, fontWeight:700, color:active?C.red:C.gray, borderBottom:active?"2.5px solid "+C.red:"2.5px solid transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-              <t.I s={18} c={active?C.red:C.gray}/>{t.label}
-            </button>
-          );
-        })}
+        {/* TABS */}
+        <div style={{ display:"flex", borderBottom:"1px solid "+C.lightGray }}>
+          {[
+            { id:"restaurants", label:"מסעדות", I:IcoFork },
+            { id:"market",      label:"מרקט",   I:IcoStore },
+          ].map(t => {
+            const active = t.id === "market";
+            return (
+              <button key={t.id}
+                onClick={() => t.id === "restaurants" && navigate("/")}
+                style={{ flex:1, background:"none", border:"none", padding:"11px 0 8px", fontSize:13, fontWeight:700, color:active?C.red:C.gray, borderBottom:active?"2.5px solid "+C.red:"2.5px solid transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                <t.I s={18} c={active?C.red:C.gray}/>{t.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* MARKET HERO */}

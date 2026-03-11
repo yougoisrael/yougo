@@ -1082,39 +1082,255 @@ function OffersTab({ business, offers, setOffers, notify }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function QRTab({ business }) {
   const [copied, setCopied] = useState(false);
-  const [activeCard, setActiveCard] = useState("customer"); // customer | menu | share
+  const [showPrint, setShowPrint] = useState(false);
 
   const baseUrl = "https://yougo-delv1.vercel.app";
-  const bizId = business?.id || "demo";
+  const bizId   = business?.id || "demo";
   const bizName = business?.name || "مطعمك";
-  const bizCategory = business?.category || "";
+  const bizCategory = business?.category || "مطعم";
+  const bizLocation = business?.location || "";
 
-  // Links
   const restaurantUrl = `${baseUrl}/#/restaurant/${bizId}`;
-  const menuUrl = `${baseUrl}/#/restaurant/${bizId}`;
+  const shortCode = String(bizId).slice(0,8).toUpperCase();
+  const qrSize = 260;
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(restaurantUrl)}&bgcolor=ffffff&color=111827&margin=12&ecc=H`;
 
-  function copyLink(url) {
-    navigator.clipboard?.writeText(url).catch(() => {});
+  function copyLink() {
+    try { navigator.clipboard?.writeText(restaurantUrl); } catch(_){}
     const el = document.createElement("textarea");
-    el.value = url;
+    el.value = restaurantUrl;
     document.body.appendChild(el);
     el.select();
     document.execCommand("copy");
     document.body.removeChild(el);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 2500);
   }
 
-  function share(url) {
+  function share() {
     if (navigator.share) {
-      navigator.share({ title: bizName, text: `طلب من ${bizName} عبر Yougo!`, url });
+      navigator.share({ title: bizName, text: `🍽️ ${bizName} على Yougo — اطلب الآن!`, url: restaurantUrl });
     } else {
-      copyLink(url);
+      copyLink();
     }
   }
 
-  // Generate QR as SVG using a simple QR-like visual (actual QR via API)
-  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(restaurantUrl)}&bgcolor=ffffff&color=111827&margin=10&ecc=H`;
+  function printPoster() {
+    // Open print poster in new window
+    const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8"/>
+<title>QR Poster — ${bizName}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: white; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+    @page { margin: 0; size: A4; }
+  }
+  .poster {
+    width: 210mm; min-height: 297mm;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0;
+    background: white;
+  }
+  .top-band {
+    width: 100%;
+    background: linear-gradient(135deg, #C8102E 0%, #7B0D1E 100%);
+    padding: 36px 40px 28px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .top-band::before {
+    content: '';
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    top: -100px; right: -80px;
+  }
+  .brand { color: rgba(255,255,220,0.85); font-size: 13px; font-weight: 700; letter-spacing: 3px; margin-bottom: 8px; }
+  .biz-name { color: white; font-size: 42px; font-weight: 900; margin-bottom: 6px; line-height: 1.1; }
+  .biz-cat { color: rgba(255,255,255,0.75); font-size: 16px; font-weight: 500; }
+  .biz-loc { color: rgba(255,255,255,0.6); font-size: 13px; margin-top: 4px; }
+  .qr-section {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 40px 24px;
+    background: white;
+    flex: 1;
+  }
+  .scan-text {
+    font-size: 22px; font-weight: 900; color: #111827;
+    margin-bottom: 6px; text-align: center;
+  }
+  .scan-sub {
+    font-size: 14px; color: #6B7280;
+    margin-bottom: 32px; text-align: center;
+  }
+  .qr-wrapper {
+    background: white;
+    border-radius: 24px;
+    padding: 20px;
+    box-shadow: 0 0 0 8px #F3F4F6, 0 0 0 10px #E5E7EB, 0 12px 40px rgba(0,0,0,0.12);
+    margin-bottom: 28px;
+    position: relative;
+  }
+  .qr-wrapper img { display: block; border-radius: 12px; }
+  .yougo-badge {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 48px; height: 48px;
+    background: #C8102E;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    border: 4px solid white;
+    box-shadow: 0 4px 12px rgba(200,16,46,0.4);
+  }
+  .yougo-badge-text { color: white; font-size: 18px; font-weight: 900; }
+  .code-badge {
+    background: #F3F4F6;
+    border-radius: 14px;
+    padding: 10px 28px;
+    margin-bottom: 24px;
+    display: flex; align-items: center; gap: 10;
+  }
+  .code-label { font-size: 12px; color: #6B7280; font-weight: 600; }
+  .code-value { font-size: 20px; font-weight: 900; color: #111827; font-family: monospace; letter-spacing: 3px; }
+  .steps {
+    width: 100%;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .step {
+    background: #F9FAFB;
+    border-radius: 16px;
+    padding: 16px;
+    display: flex; align-items: flex-start; gap: 12;
+  }
+  .step-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .step-num { font-size: 10px; color: #9CA3AF; font-weight: 700; margin-bottom: 2px; }
+  .step-title { font-size: 13px; font-weight: 800; color: #111827; }
+  .step-desc { font-size: 11px; color: #6B7280; margin-top: 2px; line-height: 1.4; }
+  .divider { width: 80px; height: 4px; background: #C8102E; border-radius: 2px; margin: 0 auto 16px; }
+  .url-box {
+    background: #F8FAFC; border: 1.5px solid #E5E7EB;
+    border-radius: 12px; padding: 10px 16px;
+    font-size: 12px; color: #6B7280;
+    width: 100%; text-align: center;
+    font-family: monospace; direction: ltr;
+    margin-bottom: 20px;
+  }
+  .footer {
+    width: 100%;
+    background: #111827;
+    padding: 16px 40px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer-logo { color: white; font-size: 20px; font-weight: 900; letter-spacing: 1px; }
+  .footer-tag { color: rgba(255,255,255,0.5); font-size: 11px; }
+  .print-btn {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #111827; color: white; border: none;
+    border-radius: 16px; padding: 14px 40px;
+    font-size: 16px; font-weight: 800; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    font-family: Arial, sans-serif;
+    display: flex; align-items: center; gap: 8;
+  }
+</style>
+</head>
+<body>
+<div class="poster">
+  <!-- TOP BAND -->
+  <div class="top-band">
+    <div class="brand">YOUGO • يوغو</div>
+    <div class="biz-name">${bizName}</div>
+    <div class="biz-cat">${bizCategory}</div>
+    ${bizLocation ? `<div class="biz-loc">📍 ${bizLocation}</div>` : ""}
+  </div>
+
+  <!-- QR SECTION -->
+  <div class="qr-section">
+    <div class="scan-text">📱 صوّر الكود واطلب الآن!</div>
+    <div class="scan-sub">لا تحتاج تطبيق — فقط افتح الكاميرا</div>
+
+    <div class="qr-wrapper">
+      <img src="${qrApiUrl}" width="240" height="240" alt="QR"/>
+      <div class="yougo-badge"><span class="yougo-badge-text">Y</span></div>
+    </div>
+
+    <div class="code-badge">
+      <span class="code-label">كود المطعم:</span>
+      <span class="code-value">${shortCode}</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon" style="background:#FEF2F2;">📱</div>
+        <div>
+          <div class="step-num">الخطوة 1</div>
+          <div class="step-title">افتح الكاميرا</div>
+          <div class="step-desc">وجّه الكاميرا نحو الكود</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon" style="background:#EFF6FF;">🔗</div>
+        <div>
+          <div class="step-num">الخطوة 2</div>
+          <div class="step-title">اضغط الرابط</div>
+          <div class="step-desc">يفتح صفحة مطعمنا مباشرة</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon" style="background:#F0FDF4;">🍽️</div>
+        <div>
+          <div class="step-num">الخطوة 3</div>
+          <div class="step-title">اختر وجبتك</div>
+          <div class="step-desc">تصفح القائمة واختر ما تريد</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon" style="background:#FFF7ED;">🛵</div>
+        <div>
+          <div class="step-num">الخطوة 4</div>
+          <div class="step-title">اطلب وادفع</div>
+          <div class="step-desc">يصلك الطلب لبابك</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="url-box">${restaurantUrl}</div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-logo">YOUGO</div>
+    <div class="footer-tag">منصة التوصيل الذكية • ${new Date().getFullYear()}</div>
+  </div>
+</div>
+
+<button class="print-btn no-print" onclick="window.print()">
+  🖨️ طباعة البوستر
+</button>
+</body>
+</html>`;
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
 
   return (
     <div style={{ fontFamily: "Arial,sans-serif", direction: "rtl", paddingBottom: 100 }}>
@@ -1124,8 +1340,8 @@ function QRTab({ business }) {
         <div style={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
         <div style={{ position: "absolute", bottom: -30, left: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.03)" }} />
         <div style={{ position: "relative" }}>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>QR CODE • كود المطعم</div>
-          <div style={{ color: "white", fontSize: 22, fontWeight: 900, marginBottom: 4 }}>{bizName}</div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", fontWeight: 600, letterSpacing: 2, marginBottom: 8 }}>QR CODE • كود المطعم</div>
+          <div style={{ color: "white", fontSize: 24, fontWeight: 900, marginBottom: 4 }}>{bizName}</div>
           <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>{bizCategory}</div>
         </div>
       </div>
@@ -1134,102 +1350,89 @@ function QRTab({ business }) {
 
         {/* ── Main QR Card ── */}
         <div style={{ background: "white", borderRadius: 24, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.1)" }}>
-          {/* QR header */}
+          {/* Red header */}
           <div style={{ background: "linear-gradient(135deg,#C8102E,#7B0D1E)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📱</div>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📱</div>
             <div>
-              <div style={{ color: "white", fontWeight: 800, fontSize: 14 }}>كود QR الخاص بمطعمك</div>
-              <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 2 }}>يفتح صفحة مطعمك مباشرةً</div>
+              <div style={{ color: "white", fontWeight: 800, fontSize: 15 }}>كود QR الخاص بمطعمك</div>
+              <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 2 }}>يفتح صفحة مطعمك مباشرة بدون تطبيق</div>
             </div>
           </div>
 
-          {/* QR Image */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 20px 20px" }}>
-            <div style={{ background: "white", borderRadius: 20, padding: 12, boxShadow: "0 0 0 6px #F3F4F6, 0 0 0 8px #E5E7EB", marginBottom: 20 }}>
-              <img
-                src={qrApiUrl}
-                alt="QR Code"
-                width={200}
-                height={200}
-                style={{ display: "block", borderRadius: 8 }}
-                onError={e => { e.target.style.display="none"; }}
-              />
-              {/* Fallback if no internet */}
-              <div style={{ width: 200, height: 200, background: "#F9FAFB", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", marginTop: -200 }}>
-                <svg width="200" height="200" viewBox="0 0 200 200" style={{ position: "absolute" }}>
-                  {/* QR corner squares */}
-                  <rect x="20" y="20" width="50" height="50" rx="6" fill="none" stroke="#111827" strokeWidth="5"/>
-                  <rect x="30" y="30" width="30" height="30" rx="3" fill="#111827"/>
-                  <rect x="130" y="20" width="50" height="50" rx="6" fill="none" stroke="#111827" strokeWidth="5"/>
-                  <rect x="140" y="30" width="30" height="30" rx="3" fill="#111827"/>
-                  <rect x="20" y="130" width="50" height="50" rx="6" fill="none" stroke="#111827" strokeWidth="5"/>
-                  <rect x="30" y="140" width="30" height="30" rx="3" fill="#111827"/>
-                  {/* Center logo */}
-                  <rect x="85" y="85" width="30" height="30" rx="6" fill="#C8102E"/>
-                  <text x="100" y="106" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">Y</text>
-                </svg>
+          {/* QR + info */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "30px 20px 24px" }}>
+            {/* QR Image with frame */}
+            <div style={{ background: "white", borderRadius: 22, padding: 14, boxShadow: "0 0 0 6px #F3F4F6, 0 0 0 9px #E5E7EB, 0 8px 30px rgba(0,0,0,0.1)", marginBottom: 22, position: "relative" }}>
+              <img src={qrApiUrl} alt="QR Code" width={220} height={220} style={{ display: "block", borderRadius: 10 }} onError={e => e.target.style.opacity="0.3"} />
+              {/* Yougo badge in center */}
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 44, height: 44, background: "#C8102E", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", border: "3px solid white", boxShadow: "0 3px 10px rgba(200,16,46,0.4)" }}>
+                <span style={{ color: "white", fontSize: 16, fontWeight: 900 }}>Y</span>
               </div>
             </div>
 
-            {/* Business ID badge */}
-            <div style={{ background: "#F3F4F6", borderRadius: 12, padding: "8px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, color: "#6B7280", fontWeight: 600 }}>معرّف المطعم:</span>
-              <span style={{ fontSize: 13, fontWeight: 900, color: "#111827", fontFamily: "monospace", letterSpacing: 1 }}>{String(bizId).slice(0, 8).toUpperCase()}</span>
+            {/* Code badge */}
+            <div style={{ background: "#F3F4F6", borderRadius: 14, padding: "10px 24px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 11, color: "#6B7280", fontWeight: 600 }}>كود المطعم:</span>
+              <span style={{ fontSize: 18, fontWeight: 900, color: "#111827", fontFamily: "monospace", letterSpacing: 3 }}>{shortCode}</span>
             </div>
 
-            {/* URL */}
-            <div style={{ width: "100%", background: "#F8FAFC", border: "1.5px solid #E5E7EB", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            {/* URL bar */}
+            <div style={{ width: "100%", background: "#F8FAFC", border: "1.5px solid #E5E7EB", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
               <span style={{ fontSize: 10, color: "#9CA3AF", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "ltr", textAlign: "left" }}>{restaurantUrl}</span>
-              <button onClick={() => copyLink(restaurantUrl)}
-                style={{ background: copied ? "#ECFDF5" : "#F3F4F6", border: "none", borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", color: copied ? "#10B981" : "#374151", flexShrink: 0, fontFamily: "inherit", transition: "all 0.2s" }}>
-                {copied ? "✓ تم" : "نسخ"}
+              <button onClick={copyLink}
+                style={{ background: copied ? "#ECFDF5" : "#F3F4F6", border: "none", borderRadius: 8, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", color: copied ? "#10B981" : "#374151", flexShrink: 0, fontFamily: "inherit", transition: "all 0.2s" }}>
+                {copied ? "✓ تم!" : "نسخ"}
               </button>
             </div>
 
-            {/* Action buttons */}
+            {/* 3 action buttons */}
             <div style={{ display: "flex", gap: 10, width: "100%" }}>
-              <button
-                onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = qrApiUrl;
-                  link.download = `yougo-qr-${bizId}.png`;
-                  link.click();
-                }}
-                style={{ flex: 1, background: "#111827", color: "white", border: "none", borderRadius: 14, padding: "13px 8px", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
+              <button onClick={() => { const a = document.createElement("a"); a.href = qrApiUrl; a.download = `yougo-qr-${shortCode}.png`; a.click(); }}
+                style={{ flex: 1, background: "#111827", color: "white", border: "none", borderRadius: 14, padding: "13px 6px", fontSize: 12, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontFamily: "inherit" }}>
                 ⬇️ تحميل
               </button>
-              <button
-                onClick={() => share(restaurantUrl)}
-                style={{ flex: 1, background: C.red, color: "white", border: "none", borderRadius: 14, padding: "13px 8px", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
+              <button onClick={share}
+                style={{ flex: 1, background: "#C8102E", color: "white", border: "none", borderRadius: 14, padding: "13px 6px", fontSize: 12, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontFamily: "inherit" }}>
                 🔗 مشاركة
               </button>
-              <button
-                onClick={() => window.print()}
-                style={{ flex: 1, background: "#F3F4F6", color: "#111827", border: "none", borderRadius: 14, padding: "13px 8px", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
+              <button onClick={printPoster}
+                style={{ flex: 1, background: "#F3F4F6", color: "#111827", border: "none", borderRadius: 14, padding: "13px 6px", fontSize: 12, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontFamily: "inherit" }}>
                 🖨️ طباعة
               </button>
             </div>
           </div>
         </div>
 
-        {/* ── How to use section ── */}
-        <div style={{ background: "white", borderRadius: 20, padding: "18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <div style={{ fontSize: 15, fontWeight: 900, color: "#111827", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-            📋 كيف تستخدم الكود؟
+        {/* ── Print Poster CTA ── */}
+        <div onClick={printPoster}
+          style={{ background: "linear-gradient(135deg,#1D4ED8,#7C3AED)", borderRadius: 22, padding: "22px 20px", cursor: "pointer", display: "flex", alignItems: "center", gap: 16, boxShadow: "0 6px 24px rgba(124,58,237,0.3)" }}>
+          <div style={{ width: 56, height: 56, background: "rgba(255,255,255,0.15)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>🖨️</div>
+          <div>
+            <div style={{ color: "white", fontWeight: 900, fontSize: 16 }}>بوستر جاهز للطباعة</div>
+            <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
+              بس اطبع وعلّق — تصميم A4 احترافي مع QR وشرح للزبائن
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+              ✓ A4 جاهز &nbsp;·&nbsp; ✓ عربي + اسم المطعم &nbsp;·&nbsp; ✓ مجاني
+            </div>
+          </div>
+        </div>
+
+        {/* ── How to use ── */}
+        <div style={{ background: "white", borderRadius: 20, padding: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#111827", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            📋 كيف يعمل الكود؟
           </div>
           {[
-            { step: "1", icon: "🖨️", title: "اطبع الكود", desc: "اضغط \"طباعة\" أو حمّل الصورة واطبعها" },
-            { step: "2", icon: "📌", title: "علّقه في مطعمك", desc: "عند المدخل، على الطاولات، أو على المنيو" },
-            { step: "3", icon: "📱", title: "الزبون يصوّر", desc: "يفتح الكاميرا ويصوّر الكود — يدخل لمطعمك مباشرة!" },
-            { step: "4", icon: "🛵", title: "يطلب ويدفع", desc: "يختار وجباته ويطلب — يصلك الطلب فوراً" },
+            { icon: "🖨️", bg: "#F3F4F6", title: "اطبع وعلّق", desc: "اطبع البوستر وعلّقه عند المدخل أو على الطاولات" },
+            { icon: "📸", bg: "#FEF2F2", title: "الزبون يصوّر", desc: "يفتح الكاميرا ويصوّر — يدخل لمطعمك مباشرة!" },
+            { icon: "🛒", bg: "#EFF6FF", title: "يختار ويطلب", desc: "يتصفح القائمة ويطلب ويدفع — يصلك الطلب فوراً" },
           ].map((s, i) => (
-            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: i < 3 ? 14 : 0 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 12, background: i === 0 ? "#F3F4F6" : i === 1 ? "#FEF2F2" : i === 2 ? "#EFF6FF" : "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                {s.icon}
-              </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>{s.title}</div>
-                <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2, lineHeight: 1.5 }}>{s.desc}</div>
+            <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: i < 2 ? 16 : 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{s.icon}</div>
+              <div style={{ paddingTop: 2 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>{s.title}</div>
+                <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3, lineHeight: 1.5 }}>{s.desc}</div>
               </div>
             </div>
           ))}
@@ -1237,19 +1440,17 @@ function QRTab({ business }) {
 
         {/* ── Share on Social ── */}
         <div style={{ background: "white", borderRadius: 20, padding: "18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <div style={{ fontSize: 15, fontWeight: 900, color: "#111827", marginBottom: 14 }}>📲 شارك على منصاتك</div>
+          <div style={{ fontSize: 14, fontWeight: 900, color: "#111827", marginBottom: 14 }}>📲 شارك مطعمك على</div>
           <div style={{ display: "flex", gap: 10 }}>
             {[
-              { label: "واتساب", bg: "#25D366", emoji: "💬",
-                url: `https://wa.me/?text=${encodeURIComponent(`🍽️ ${bizName} الآن على Yougo!\nاطلب مباشرة: ${restaurantUrl}`)}` },
-              { label: "انستغرام", bg: "linear-gradient(135deg,#E1306C,#833AB4)", emoji: "📸",
-                url: restaurantUrl },
-              { label: "فيسبوك", bg: "#1877F2", emoji: "👥",
-                url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(restaurantUrl)}` },
+              { label: "واتساب", bg: "#25D366", emoji: "💬", url: `https://wa.me/?text=${encodeURIComponent(`🍽️ ${bizName} على Yougo!
+اطلب مباشرة: ${restaurantUrl}`)}` },
+              { label: "فيسبوك", bg: "#1877F2", emoji: "👥", url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(restaurantUrl)}` },
+              { label: "مشاركة", bg: "linear-gradient(135deg,#E1306C,#833AB4)", emoji: "📤", url: null },
             ].map((s, i) => (
               <button key={i}
-                onClick={() => window.open(s.url, "_blank")}
-                style={{ flex: 1, background: s.bg, color: "white", border: "none", borderRadius: 14, padding: "12px 6px", fontSize: 11, fontWeight: 800, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+                onClick={() => s.url ? window.open(s.url, "_blank") : share()}
+                style={{ flex: 1, background: s.bg, color: "white", border: "none", borderRadius: 14, padding: "13px 6px", fontSize: 12, fontWeight: 800, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
                 <span style={{ fontSize: 20 }}>{s.emoji}</span>
                 {s.label}
               </button>
@@ -1257,26 +1458,11 @@ function QRTab({ business }) {
           </div>
         </div>
 
-        {/* ── Stats teaser ── */}
-        <div style={{ background: "linear-gradient(135deg,#1D4ED8,#7C3AED)", borderRadius: 20, padding: "18px 20px", display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ fontSize: 32 }}>📊</div>
-          <div>
-            <div style={{ color: "white", fontWeight: 900, fontSize: 14 }}>تتبع الزيارات قريباً!</div>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 3, lineHeight: 1.5 }}>ستعرف كم شخص فتح مطعمك عبر الكود</div>
-          </div>
-        </div>
-
       </div>
-
-      <style>{`
-        @media print {
-          body > *:not(#qr-print) { display: none !important; }
-          .no-print { display: none !important; }
-        }
-      `}</style>
     </div>
   );
 }
+
 
 function SettingsTab({ business, setBusiness, notify, onLogout }) {
   const [form, setForm] = useState({

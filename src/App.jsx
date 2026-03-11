@@ -32,17 +32,31 @@ export default function App() {
       if (session?.user) {
         const u = session.user;
         const meta = u.user_metadata || {};
+        // ✅ حتى لو ما في firstName نعتبره مسجل ونبعته لصفحة إكمال البيانات
         if (meta.firstName) {
           setUser({ id: u.id, email: u.email, name: meta.firstName + " " + meta.lastName, firstName: meta.firstName, phone: meta.phone || "", gender: meta.gender, age: meta.age });
           setAuthed(true);
           setGuest(false);
+        } else {
+          // مسجل بس ما أكمل بياناته — يرجع لشاشة التسجيل
+          setAuthed(false);
         }
       }
       setChecking(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // ✅ فقط نطرد المستخدم لما ما في session — مش لما تتغير
       if (!session) { setAuthed(false); setUser(null); setCart([]); }
+      else if (session?.user) {
+        const u = session.user;
+        const meta = u.user_metadata || {};
+        if (meta.firstName && !_event.includes('SIGN_OUT')) {
+          setUser({ id: u.id, email: u.email, name: meta.firstName + " " + meta.lastName, firstName: meta.firstName, phone: meta.phone || "", gender: meta.gender, age: meta.age });
+          setAuthed(true);
+          setGuest(false);
+        }
+      }
     });
     return () => subscription.unsubscribe();
   }, []);

@@ -161,6 +161,15 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
     if(!oauth){const pe=pwErr(reg.pass);if(pe)errs.pass=pe;if(reg.pass!==reg.pass2)errs.pass2="הסיסמאות אינן תואמות";}
     if(Object.keys(errs).length>0){setRErrs(errs);return;}
     setRBusy(true);
+    // ✅ CHECK: רקם טלפון ייחודי — אסור לשני חשבונות להשתמש באותו מספר
+    const rawPhone=reg.phone.replace(/\D/g,"");
+    const phoneVariants=[rawPhone,rawPhone.replace(/^0/,""),"0"+rawPhone.replace(/^0/,"")];
+    let phoneTaken=false;
+    for(const v of phoneVariants){
+      const{data:pd}=await supabase.from("users").select("id,email").eq("phone",v).maybeSingle();
+      if(pd && pd.id !== session?.user?.id){phoneTaken=true;break;}
+    }
+    if(phoneTaken){setRErrs({phone:"מספר הטלפון כבר רשום לחשבון אחר"});setRBusy(false);return;}
     const meta={firstName:reg.firstName.trim(),lastName:reg.lastName.trim(),phone:reg.phone,gender:reg.gender,age:reg.age};
     if(oauth){
       const{error}=await supabase.auth.updateUser({data:meta});

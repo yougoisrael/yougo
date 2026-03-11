@@ -240,12 +240,14 @@ function BottomNav({ tab, setTab, newOrdersCount }) {
 // BUSINESS AUTH FLOW
 // ═══════════════════════════════════════════════════════════════════════════════
 function BusinessAuth({ onDone, onBack }) {
-  const [mode, setMode]       = useState("login"); // login | register
-  const [step, setStep]       = useState(1);
+  const [screen, setScreen]   = useState("choose"); // choose | login | register
+  const [step, setStep]       = useState(3);
   const [loading, setLoading] = useState(false);
   const [toast, setToast]     = useState(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [form, setForm]       = useState({
-    phone: "", otp: "", businessName: "", category: "",
+    phone: "", businessName: "", category: "",
     city: "", address: "", ownerName: "", email: "",
     description: "", openTime: "10:00", closeTime: "22:00",
     deliveryFee: "10", minOrder: "40",
@@ -254,35 +256,25 @@ function BusinessAuth({ onDone, onBack }) {
   const notify = (msg, type = "success") => setToast({ msg, type });
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  // Mock OTP send
-  async function sendOtp() {
-    if (!form.phone || form.phone.length < 9) { notify("أدخل رقم هاتف صحيح", "error"); return; }
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
+  async function handleLogin() {
+    const cleaned = loginEmail.trim().toLowerCase();
+    if (!cleaned || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned)) {
+      setLoginError("أدخل بريد إلكتروني صحيح"); return;
+    }
+    setLoginError(""); setLoading(true);
+    try {
+      const { data, error } = await supabase.from("businesses").select("*").eq("email", cleaned).single();
+      if (error || !data) {
+        setLoginError("لا يوجد عمل مسجل بهذا البريد"); setLoading(false); return;
+      }
+      onDone(data);
+    } catch (_) {
+      setLoginError("حدث خطأ، حاول مجدداً");
+    }
     setLoading(false);
-    setStep(2);
-    notify("تم إرسال رمز التحقق (1234 للاختبار)", "info");
   }
 
-  async function verifyOtp() {
-    if (form.otp.length < 4) { notify("أدخل رمز التحقق", "error"); return; }
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    setLoading(false);
-    if (mode === "login") {
-      // Try to load existing business
-      try {
-        const { data } = await supabase.from("businesses").select("*").eq("phone", form.phone).single();
-        if (data) { onDone(data); return; }
-      } catch (_) {}
-      // No business found
-      setMode("register");
-      setStep(3);
-      notify("لا يوجد عمل مسجل، سجّل عملك الآن", "info");
-    } else {
-      setStep(3);
-    }
-  }
+  async function verifyOtp() { setStep(3); }
 
   async function registerBusiness() {
     if (!form.businessName || !form.category || !form.city) {
@@ -319,64 +311,59 @@ function BusinessAuth({ onDone, onBack }) {
       <div style={{ background: `linear-gradient(135deg,${C.red},${C.darkRed})`, padding: "48px 24px 32px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -40, left: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,.07)" }} />
         <div style={{ position: "absolute", bottom: -30, right: -30, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,.05)" }} />
-        <button onClick={onBack} style={{ background: "rgba(255,255,255,.15)", border: "none", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", marginBottom: 20 }}>
+        <button onClick={screen === "choose" ? onBack : () => setScreen("choose")} style={{ background: "rgba(255,255,255,.15)", border: "none", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", marginBottom: 20 }}>
           <Icon d={I.back} size={18} color="#fff" />
         </button>
         <div style={{ fontSize: 36, marginBottom: 10 }}>🏪</div>
         <div style={{ color: "#fff", fontSize: 24, fontWeight: 900, marginBottom: 4 }}>
-          {mode === "register" ? "سجّل عملك" : "بوابة الأعمال"}
+          {screen === "choose" ? "بوابة الأعمال" : screen === "login" ? "تسجيل الدخول" : "سجّل عملك"}
         </div>
         <div style={{ color: "rgba(255,255,255,.8)", fontSize: 13 }}>
-          {mode === "register" ? "أضف مطعمك أو متجرك على Yougo" : "أدر مطعمك أو متجرك"}
+          {screen === "choose" ? "أدر مطعمك أو متجرك" : screen === "login" ? "ادخل على حسابك المسجّل" : "أضف مطعمك أو متجرك على Yougo"}
         </div>
-
-        {/* Step indicator */}
-        {(mode === "register" || step > 1) && (
-          <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-            {[1, 2, 3].map(s => (
-              <div key={s} style={{ flex: 1, height: 4, borderRadius: 2, background: step >= s ? "#fff" : "rgba(255,255,255,.3)", transition: "background .3s" }} />
-            ))}
-          </div>
-        )}
       </div>
 
       <div style={{ padding: "24px 20px 40px" }}>
 
-        {/* Step 1: Phone */}
-        {step === 1 && (
-          <Card style={{ padding: "24px" }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.dark, marginBottom: 6 }}>رقم الهاتف</div>
-            <div style={{ fontSize: 12, color: C.gray, marginBottom: 18 }}>سنرسل لك رمز تحقق</div>
-            <Field label="رقم الجوال" required>
-              <Input value={form.phone} onChange={e => setF("phone", e.target.value)} placeholder="05X-XXX-XXXX" type="tel" />
-            </Field>
-            <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-              <Btn onClick={sendOtp} disabled={loading} full>
-                {loading ? "جاري الإرسال..." : "إرسال رمز التحقق"}
-              </Btn>
-            </div>
-            <div style={{ marginTop: 18, textAlign: "center" }}>
-              <button onClick={() => setMode(mode === "login" ? "register" : "login")} style={{ background: "none", border: "none", color: C.red, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                {mode === "login" ? "تسجيل عمل جديد +" : "لدي حساب بالفعل"}
-              </button>
-            </div>
-          </Card>
+        {/* شاشة الاختيار */}
+        {screen === "choose" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <button onClick={() => setScreen("login")}
+              style={{ background: C.red, color: "white", border: "none", borderRadius: 18, padding: "22px 20px", fontSize: 16, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", gap: 14, textAlign: "right", fontFamily: "inherit" }}>
+              <span style={{ fontSize: 32 }}>🔑</span>
+              <div>
+                <div>دخول حساب مسجّل</div>
+                <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.85, marginTop: 3 }}>لديك حساب بالفعل؟ ادخل هنا</div>
+              </div>
+            </button>
+            <button onClick={() => setScreen("register")}
+              style={{ background: "white", color: C.dark, border: `2px solid ${C.borderGray}`, borderRadius: 18, padding: "22px 20px", fontSize: 16, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", gap: 14, textAlign: "right", fontFamily: "inherit" }}>
+              <span style={{ fontSize: 32 }}>🏪</span>
+              <div>
+                <div>تسجيل عمل جديد</div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: C.gray, marginTop: 3 }}>أضف مطعمك أو متجرك لأول مرة</div>
+              </div>
+            </button>
+          </div>
         )}
 
-        {/* Step 2: OTP */}
-        {step === 2 && (
+        {/* شاشة الدخول */}
+        {screen === "login" && (
           <Card style={{ padding: "24px" }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.dark, marginBottom: 6 }}>رمز التحقق</div>
-            <div style={{ fontSize: 12, color: C.gray, marginBottom: 18 }}>أرسلنا رمزاً إلى {form.phone}</div>
-            <Field label="رمز التحقق (4 أرقام)" required>
-              <Input value={form.otp} onChange={e => setF("otp", e.target.value)} placeholder="• • • •" type="number" style={{ textAlign: "center", fontSize: 22, fontWeight: 900, letterSpacing: 8 }} />
-            </Field>
-            <Btn onClick={verifyOtp} disabled={loading} full>
-              {loading ? "جاري التحقق..." : "تحقق والمتابعة"}
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.dark, marginBottom: 6 }}>البريد الإلكتروني</div>
+            <div style={{ fontSize: 12, color: C.gray, marginBottom: 18 }}>أدخل البريد المسجّل معنا</div>
+            <input
+              value={loginEmail}
+              onChange={e => { setLoginEmail(e.target.value); setLoginError(""); }}
+              onKeyDown={e => { if (e.key === "Enter") handleLogin(); }}
+              placeholder="example@email.com"
+              type="email"
+              style={{ width: "100%", border: `1.5px solid ${loginError ? C.red : C.borderGray}`, borderRadius: 12, padding: "12px 14px", fontSize: 14, outline: "none", direction: "ltr", textAlign: "left", fontFamily: "inherit", marginBottom: 4 }}
+            />
+            {loginError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>{loginError}</div>}
+            <Btn onClick={handleLogin} disabled={loading} full style={{ marginTop: 8 }}>
+              {loading ? "جاري البحث..." : "دخول ←"}
             </Btn>
-            <button onClick={() => setStep(1)} style={{ width: "100%", background: "none", border: "none", color: C.gray, fontSize: 12, marginTop: 12, cursor: "pointer", fontFamily: "inherit" }}>
-              تغيير رقم الهاتف
-            </button>
           </Card>
         )}
 

@@ -103,7 +103,7 @@ export default function MarketPage({ cartCount }) {
   );
 
   return (
-    <div className="page-enter" style={{ fontFamily: "Arial,sans-serif", background: C.bg, minHeight: "100vh", maxWidth: 430, margin: "0 auto", direction: "rtl", overflowX: "hidden", paddingBottom: 90, paddingTop: 62 }}>
+    <div className="page-enter" style={{ fontFamily: "Arial,sans-serif", background: C.bg, minHeight: "100vh", maxWidth: 430, margin: "0 auto", direction: "rtl", paddingBottom: 90, paddingTop: 62 }}>
       <Sidebar />
       {/* TOP BAR */}
       <div style={{ background: C.white, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, width: "100%", maxWidth: 430, position: "fixed", top: 0, zIndex: 400, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>

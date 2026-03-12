@@ -96,7 +96,8 @@ export default function MapPage({ cartCount = 0 }) {
   ];
 
   return (
-    <div style={{position:"fixed",inset:0,background:C.dark,fontFamily:"Arial,sans-serif",direction:"rtl"}}>
+    <div style={{position:"fixed",inset:0,background:"#e8e0d8",fontFamily:"Arial,sans-serif",direction:"rtl",display:"flex",justifyContent:"center"}}>
+      <div style={{position:"relative",width:"100%",maxWidth:430,height:"100%",overflow:"hidden"}}>
 
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
@@ -105,7 +106,7 @@ export default function MapPage({ cartCount = 0 }) {
       `}</style>
 
       {/* ── Fixed Header (same as app) ── */}
-      <div className="app-header" style={{direction:"rtl"}}>
+      <div style={{position:"absolute",top:0,left:0,right:0,zIndex:500,background:"rgba(255,255,255,0.95)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",boxShadow:"0 1px 0 rgba(0,0,0,0.07)",direction:"rtl"}}>
         <div style={{padding:"10px 16px",display:"flex",alignItems:"center",gap:10}}>
           <button className="mBtn" onClick={()=>navigate(-1)} style={{background:"none",border:"none",cursor:"pointer",padding:4,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -126,7 +127,7 @@ export default function MapPage({ cartCount = 0 }) {
       </div>
 
       {/* ── Map fills screen ── */}
-      <div ref={mapRef} style={{width:"100%",height:"100%"}} />
+      <div ref={mapRef} style={{width:"100%",height:"100%",position:"absolute",inset:0}} />
 
       {/* ── Loading ── */}
       {!ready && (
@@ -199,7 +200,8 @@ export default function MapPage({ cartCount = 0 }) {
       )}
 
       {/* ── Bottom Nav (same as app) ── */}
-      <BottomNav cartCount={cartCount} />
+      <div style={{position:"absolute",bottom:0,left:0,right:0,zIndex:500}}><BottomNav cartCount={cartCount} /></div>
+      </div>
     </div>
   );
 }

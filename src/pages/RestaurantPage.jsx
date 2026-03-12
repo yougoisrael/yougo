@@ -354,7 +354,7 @@ export default function RestaurantPage({ cart, add, rem, cartCount }) {
         </div>
       )}
 
-      {/* ── MENU — 2-column grid per section ── */}
+      {/* ── MENU CAROUSELS — horizontal per section, no clipping ── */}
       <div style={{ paddingBottom:8 }}>
         {loading ? (
           <div style={{ textAlign:"center", padding:50, color:"#9CA3AF" }}>
@@ -381,24 +381,26 @@ export default function RestaurantPage({ cart, add, rem, cartCount }) {
                     {items.length} פריטים
                   </span>
                 </div>
-                {/* 2-column equal grid */}
+                {/* Horizontal carousel — paddingInline fixes clipping */}
                 <div style={{
-                  display:"grid",
-                  gridTemplateColumns:"1fr 1fr",
-                  gap:12,
-                  padding:"0 16px",
+                  display:"flex", gap:12,
+                  overflowX:"auto", overflowY:"visible",
+                  paddingTop:4, paddingBottom:12,
+                  paddingInlineStart:16, paddingInlineEnd:16,
+                  scrollbarWidth:"none", WebkitOverflowScrolling:"touch",
                 }}>
                   {items.map((item, idx) => (
-                    <MenuCard
-                      key={item.id}
-                      item={item}
-                      qty={getQty(item.id)}
-                      onOpen={() => setSelectedItem(item)}
-                      onQuickAdd={() => add(item, r)}
-                      onRem={() => rem(item.id, id)}
-                      delay={idx * 40}
-                      coverColor={r.cover_color}
-                    />
+                    <div key={item.id} style={{ flexShrink:0, width:160 }}>
+                      <MenuCard
+                        item={item}
+                        qty={getQty(item.id)}
+                        onOpen={() => setSelectedItem(item)}
+                        onQuickAdd={() => add(item, r)}
+                        onRem={() => rem(item.id, id)}
+                        delay={idx * 40}
+                        coverColor={r.cover_color}
+                      />
+                    </div>
                   ))}
                 </div>
               </div>

@@ -258,34 +258,64 @@ export default function MarketPage({ cartCount, user }) {
         </div>
       </div>
 
-      {/* SECTION HEADER */}
-      <div style={{ padding:"8px 16px 6px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:15, fontWeight:900, color:C.dark, display:"flex", alignItems:"center", gap:6 }}>
-          <IcoStore s={16} c={C.red}/> חנויות קרובות
-        </span>
-        <span style={{ fontSize:12, color:C.gray }}>{filtered.length} חנויות</span>
-      </div>
-
-      {/* STORE GRID — same 2-col as restaurants */}
-      <div style={{ padding:"0 16px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:13 }}>
+      {/* STORE CAROUSELS — same style as HomePage */}
+      <div style={{ paddingBottom: 8 }}>
         {loading ? (
-          <div style={{ gridColumn:"1/-1", textAlign:"center", padding:40, color:C.gray }}>
+          <div style={{ textAlign:"center", padding:40, color:C.gray }}>
             <div style={{ width:36, height:36, borderRadius:"50%", border:"3px solid "+C.lightGray, borderTopColor:C.red, animation:"spin .7s linear infinite", margin:"0 auto 12px" }}/>
             טוען חנויות...
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ gridColumn:"1/-1", textAlign:"center", padding:"50px 0", color:C.gray }}>
+          <div style={{ textAlign:"center", padding:"50px 0", color:C.gray }}>
             <div style={{ fontSize:40, marginBottom:12 }}>🏪</div>
             <div style={{ fontSize:15, fontWeight:600 }}>אין חנויות זמינות</div>
           </div>
-        ) : filtered.map((s, i) => (
-          <StoreCard
-            key={s.id}
-            s={s}
-            onClick={() => navigate("/restaurant/"+s.id, { state: s })}
-            delay={i * 60}
-          />
-        ))}
+        ) : (
+          <>
+            {/* All stores row */}
+            <div style={{ marginBottom:24 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 16px 10px", }}>
+                <span style={{ fontSize:16, fontWeight:900, color:C.dark, display:"flex", alignItems:"center", gap:6 }}>
+                  🔥 כל החנויות
+                </span>
+                <span style={{ fontSize:12, color:C.gray }}>{filtered.length} חנויות</span>
+              </div>
+              <div style={{ display:"flex", gap:12, overflowX:"auto", padding:"4px 16px 8px", scrollbarWidth:"none", WebkitOverflowScrolling:"touch", scrollSnapType:"x mandatory" }}>
+                {filtered.map((s, i) => (
+                  <div key={s.id} style={{ scrollSnapAlign:"start", flexShrink:0, width:200 }}>
+                    <StoreCard s={s} onClick={() => navigate("/restaurant/"+s.id, { state:s })} delay={i*50}/>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Per-category rows */}
+            {MKTCATS.filter(c => c.id !== "all").map(cat => {
+              const catItems = filtered.filter(s =>
+                s.category?.toLowerCase().includes(cat.id) ||
+                s.tags?.includes(cat.id)
+              );
+              if (catItems.length === 0) return null;
+              return (
+                <div key={cat.id} style={{ marginBottom:24 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 16px 10px" }}>
+                    <span style={{ fontSize:16, fontWeight:900, color:C.dark, display:"flex", alignItems:"center", gap:6 }}>
+                      <cat.Cmp active={false}/> {cat.label}
+                    </span>
+                    <span style={{ fontSize:12, color:C.gray }}>{catItems.length} חנויות</span>
+                  </div>
+                  <div style={{ display:"flex", gap:12, overflowX:"auto", padding:"4px 16px 8px", scrollbarWidth:"none", WebkitOverflowScrolling:"touch", scrollSnapType:"x mandatory" }}>
+                    {catItems.map((s, i) => (
+                      <div key={s.id} style={{ scrollSnapAlign:"start", flexShrink:0, width:200 }}>
+                        <StoreCard s={s} onClick={() => navigate("/restaurant/"+s.id, { state:s })} delay={i*50}/>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
 
       <BottomNav cartCount={cartCount}/>

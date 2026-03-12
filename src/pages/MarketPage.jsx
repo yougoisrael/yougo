@@ -341,6 +341,16 @@ export default function MarketPage({ cartCount, user }) {
   const [mktCat, setMktCat]             = useState("all");
   const [searchOpen, setSearchOpen]     = useState(false);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
+
+  useEffect(() => {
+    const el = document.documentElement;
+    if (sidebarOpen) {
+      el.style.setProperty("overflow", "hidden");
+    } else {
+      el.style.removeProperty("overflow");
+    }
+    return () => el.style.removeProperty("overflow");
+  }, [sidebarOpen]);
   const [searchQ, setSearchQ]           = useState("");
   const [banner, setBanner]             = useState(0);
 

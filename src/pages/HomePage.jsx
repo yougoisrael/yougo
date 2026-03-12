@@ -238,12 +238,11 @@ function Sidebar({ open, onClose, user, navigate }) {
       />
       {/* Drawer */}
       <div style={{
-        position:"fixed", top:0, right:0, bottom:0, width:300, maxWidth:"80vw",
+        position:"fixed", top:0, right:0, height:"100dvh", width:300, maxWidth:"80vw",
         background:"white", zIndex:601, display:"flex", flexDirection:"column",
         transform: open ? "translateX(0)" : "translateX(100%)",
         transition:"transform 0.35s cubic-bezier(0.34,1.1,0.64,1)",
-        boxShadow:"-8px 0 40px rgba(0,0,0,0.15)",
-        overflowY:"auto",
+        boxShadow:"-8px 0 40px rgba(0,0,0,0.15)", overflow:"hidden",
       }}>
         {/* Header */}
         <div style={{ background:"linear-gradient(135deg,#C8102E,#7B0D1E)", padding:"calc(env(safe-area-inset-top,0px) + 54px) 20px 24px", position:"relative", flexShrink:0 }}>
@@ -259,7 +258,7 @@ function Sidebar({ open, onClose, user, navigate }) {
         </div>
 
         {/* Menu items */}
-        <div style={{ flex:1, padding:"12px 0" }}>
+        <div style={{ flex:1, padding:"12px 0", overflowY:"auto" }}>
           {[
             { icon:<IcoUser s={20} c={C.red}/>,      label:"הפרופיל שלי",    path:"/profile" },
             { icon:<IcoPackage s={20} c={C.red}/>,   label:"ההזמנות שלי",   path:"/orders" },
@@ -465,6 +464,16 @@ export default function HomePage({ user, guest, cartCount }) {
   const [cat, setCat] = useState("all");
   const [banner, setBanner] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const el = document.documentElement;
+    if (sidebarOpen) {
+      el.style.setProperty("overflow", "hidden");
+    } else {
+      el.style.removeProperty("overflow");
+    }
+    return () => el.style.removeProperty("overflow");
+  }, [sidebarOpen]);
 
 
   useEffect(() => {

@@ -180,6 +180,7 @@ export default function MarketPage({ cartCount, user }) {
 
       {/* FIXED HEADER — TopBar + TABS */}
       <div className="fixed-header">
+       <div className="page-wrap">
         {/* TOP BAR */}
         <div style={{ padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
           {searchOpen ? (
@@ -228,6 +229,7 @@ export default function MarketPage({ cartCount, user }) {
             );
           })}
         </div>
+       </div>
       </div>
 
       {/* MARKET HERO */}

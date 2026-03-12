@@ -175,7 +175,7 @@ export default function MarketPage({ cartCount, user }) {
   );
 
   return (
-    <div className="page-enter" style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", overflowX:"hidden", paddingBottom:90, paddingTop:106 }}>
+    <div className="page-enter" style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", direction:"rtl", paddingBottom:90, paddingTop:106 }}>
       <Sidebar/>
 
       {/* FIXED HEADER — TopBar + TABS */}

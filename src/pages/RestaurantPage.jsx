@@ -181,7 +181,7 @@ function ItemPopup({ item, qty, onAdd, onRem, onClose }) {
   );
 }
 
-// ── Menu Item Card — Haat style horizontal ────────
+// ── Menu Item Card (2-column grid, same style as restaurant card) ──
 function MenuCard({ item, qty, onOpen, onQuickAdd, onRem, delay, coverColor }) {
   const [pressed, setPressed] = useState(false);
   const emoji = categoryEmoji(item.category, item.is_hot);
@@ -193,19 +193,17 @@ function MenuCard({ item, qty, onOpen, onQuickAdd, onRem, delay, coverColor }) {
       onTouchStart={() => setPressed(true)}
       onTouchEnd={() => setPressed(false)}
       style={{
-        background:"white", borderRadius:16, overflow:"hidden",
-        cursor:"pointer",
-        boxShadow: pressed ? "0 1px 6px rgba(0,0,0,0.06)" : "0 2px 10px rgba(0,0,0,0.06)",
-        transform: pressed ? "scale(0.98)" : "scale(1)",
-        transition:"transform 0.15s ease",
-        animation:`slideUp 0.3s cubic-bezier(0.34,1.2,0.64,1) ${delay}ms both`,
-        display:"flex", flexDirection:"row-reverse", alignItems:"stretch",
-        minHeight:96,
+        background:"white", borderRadius:20, overflow:"hidden",
+        cursor:"pointer", width:"100%",
+        boxShadow: pressed ? "0 2px 8px rgba(0,0,0,0.07)" : "0 4px 18px rgba(0,0,0,0.07)",
+        transform: pressed ? "scale(0.97)" : "scale(1)",
+        transition:"transform 0.15s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.15s ease",
+        animation:`slideUp 0.35s cubic-bezier(0.34,1.2,0.64,1) ${delay}ms both`,
       }}
     >
-      {/* Image — right side */}
+      {/* Image / emoji area */}
       <div style={{
-        width:96, flexShrink:0,
+        height:110,
         background: item.image_url ? "transparent"
           : `linear-gradient(135deg,${hexA(bg,"22")},${hexA(bg,"44")})`,
         display:"flex", alignItems:"center", justifyContent:"center",
@@ -213,35 +211,35 @@ function MenuCard({ item, qty, onOpen, onQuickAdd, onRem, delay, coverColor }) {
       }}>
         {item.image_url
           ? <img src={item.image_url} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt={item.name}/>
-          : <span style={{ fontSize:44 }}>{emoji}</span>
+          : <span style={{ fontSize:52 }}>{emoji}</span>
         }
         {item.is_hot && (
-          <div style={{ position:"absolute", top:6, right:6, background:"#FEF2F2", color:"#EF4444", fontSize:8, fontWeight:800, padding:"2px 6px", borderRadius:20 }}>🌶️</div>
+          <div style={{ position:"absolute", top:7, right:7, background:"#FEF2F2", color:"#EF4444", fontSize:9, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>🌶️</div>
         )}
         {qty > 0 && (
-          <div style={{ position:"absolute", top:6, left:6, background:C.red, color:"white", width:18, height:18, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:900 }}>{qty}</div>
+          <div style={{ position:"absolute", top:7, left:7, background:C.red, color:"white", width:20, height:20, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:900 }}>{qty}</div>
         )}
       </div>
 
-      {/* Info — left side */}
-      <div style={{ flex:1, padding:"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", direction:"rtl" }}>
-        <div>
-          <div style={{ fontWeight:900, fontSize:14, color:"#111827", marginBottom:3, lineHeight:1.3 }}>{item.name}</div>
-          {item.description && (
-            <div style={{ fontSize:11, color:"#9CA3AF", lineHeight:1.4,
-              display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>
-              {item.description}
-            </div>
-          )}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:8 }}>
-          <span style={{ fontSize:16, fontWeight:900, color:C.red }}>₪{item.price}</span>
-          <div onClick={e => e.stopPropagation()} style={{ display:"flex", alignItems:"center", gap:6 }}>
+      {/* Info */}
+      <div style={{ padding:"10px 12px 12px", direction:"rtl" }}>
+        <div style={{ fontWeight:900, fontSize:13, color:"#111827", marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{item.name}</div>
+        {item.description && (
+          <div style={{ fontSize:10, color:"#9CA3AF", marginBottom:6, lineHeight:1.4,
+            display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>
+            {item.description}
+          </div>
+        )}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:4 }}>
+          <span style={{ fontSize:15, fontWeight:900, color:C.red }}>₪{item.price}</span>
+          {/* Quick add button */}
+          <div onClick={e => { e.stopPropagation(); }} style={{ display:"flex", alignItems:"center", gap:5 }}>
             {qty > 0 && (
               <>
                 <button onClick={e => { e.stopPropagation(); onRem(); }} style={{
                   width:26, height:26, borderRadius:"50%", border:"2px solid #F3F4F6",
-                  background:"white", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+                  background:"white", display:"flex", alignItems:"center",
+                  justifyContent:"center", cursor:"pointer",
                 }}>
                   <IcoMinus s={10} c={C.dark}/>
                 </button>
@@ -249,11 +247,12 @@ function MenuCard({ item, qty, onOpen, onQuickAdd, onRem, delay, coverColor }) {
               </>
             )}
             <button onClick={e => { e.stopPropagation(); onQuickAdd(); }} style={{
-              width:30, height:30, borderRadius:"50%", border:"none",
-              background:C.red, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+              width:32, height:32, borderRadius:"50%", border:"none",
+              background:C.red, display:"flex", alignItems:"center",
+              justifyContent:"center", cursor:"pointer",
               boxShadow:"0 3px 10px rgba(200,16,46,0.3)",
             }}>
-              <IcoPlus s={13} c="white"/>
+              <IcoPlus s={14} c="white"/>
             </button>
           </div>
         </div>
@@ -355,8 +354,8 @@ export default function RestaurantPage({ cart, add, rem, cartCount }) {
         </div>
       )}
 
-      {/* ── MENU GRID ── */}
-      <div style={{ padding:"0 16px" }}>
+      {/* ── MENU CAROUSELS — horizontal per section ── */}
+      <div style={{ paddingBottom: 8 }}>
         {loading ? (
           <div style={{ textAlign:"center", padding:50, color:"#9CA3AF" }}>
             <div style={{ width:36, height:36, borderRadius:"50%", border:"3px solid #E5E7EB", borderTopColor:C.red, animation:"spin .7s linear infinite", margin:"0 auto 12px" }}/>
@@ -368,33 +367,44 @@ export default function RestaurantPage({ cart, add, rem, cartCount }) {
             <div style={{ fontSize:15, fontWeight:700, color:"#111827" }}>אין פריטים בתפריט</div>
           </div>
         ) : (
-          sections.filter(s => !activeSection || s===activeSection).map(section => (
-            <div key={section} style={{ background:"white", borderRadius:20, overflow:"hidden", marginBottom:14, boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
-              {/* Section Header */}
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"14px 16px 10px", borderBottom:"1px solid #F9FAFB" }}>
-                <span style={{ fontSize:16 }}>{categoryEmoji(section, false)}</span>
-                <span style={{ fontSize:15, fontWeight:900, color:"#111827" }}>{section}</span>
-                <span style={{ fontSize:11, color:"#9CA3AF", marginRight:"auto" }}>{menu.filter(m=>m.category===section).length} פריטים</span>
+          sections.filter(s => !activeSection || s === activeSection).map(section => {
+            const items = menu.filter(m => m.category === section);
+            return (
+              <div key={section} style={{ marginBottom:24 }}>
+                {/* Section header */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, padding:"16px 16px 10px" }}>
+                  <div style={{ width:4, height:22, borderRadius:2, background:C.red }}/>
+                  <span style={{ fontSize:16, fontWeight:900, color:"#111827" }}>
+                    {categoryEmoji(section, false)} {section}
+                  </span>
+                  <span style={{ fontSize:12, color:"#9CA3AF", marginRight:"auto" }}>
+                    {items.length} פריטים
+                  </span>
+                </div>
+                {/* Horizontal scroll */}
+                <div style={{
+                  display:"flex", gap:12,
+                  overflowX:"auto", padding:"4px 16px 8px",
+                  scrollbarWidth:"none", WebkitOverflowScrolling:"touch",
+                  scrollSnapType:"x mandatory",
+                }}>
+                  {items.map((item, idx) => (
+                    <div key={item.id} style={{ scrollSnapAlign:"start", flexShrink:0, width:160 }}>
+                      <MenuCard
+                        item={item}
+                        qty={getQty(item.id)}
+                        onOpen={() => setSelectedItem(item)}
+                        onQuickAdd={() => add(item, r)}
+                        onRem={() => rem(item.id, id)}
+                        delay={idx * 40}
+                        coverColor={r.cover_color}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-
-              {/* Items list */}
-              <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
-                {menu.filter(m => m.category===section).map((item, idx) => (
-                  <div key={item.id} style={{ borderBottom: idx < menu.filter(m=>m.category===section).length-1 ? "1px solid #F9FAFB" : "none" }}>
-                    <MenuCard
-                      item={item}
-                      qty={getQty(item.id)}
-                      onOpen={() => setSelectedItem(item)}
-                      onQuickAdd={() => add(item, r)}
-                      onRem={() => rem(item.id, id)}
-                      delay={idx * 30}
-                      coverColor={r.cover_color}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

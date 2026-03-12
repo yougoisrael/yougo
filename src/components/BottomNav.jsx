@@ -24,10 +24,12 @@ export default function BottomNav({ cartCount }) {
   ];
 
   return (
-    <nav className="app-nav" style={{
-      display:"flex", padding:"6px 4px",
-      paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 8px)",
-    }}>
+    <>
+      <div style={{ height:72 }} />
+      <nav className="app-nav" style={{
+        display:"flex", padding:"6px 4px",
+        paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 8px)",
+      }}>
         {items.map(t => {
           const active = pathname === t.path
             || (t.path !== "/" && pathname.startsWith(t.path));
@@ -40,13 +42,11 @@ export default function BottomNav({ cartCount }) {
               background:"none", border:"none", cursor:"pointer",
               padding:"4px 0", position:"relative",
             }}>
-              {/* active dot */}
               {active && <div style={{
                 position:"absolute", top:-5,
                 width:4, height:4, borderRadius:"50%", background:C.red,
               }}/>}
 
-              {/* cart badge */}
               {isCart && cartCount > 0 && (
                 <span style={{
                   position:"absolute", top:0, right:"50%",
@@ -85,5 +85,6 @@ export default function BottomNav({ cartCount }) {
           );
         })}
       </nav>
+    </>
   );
 }

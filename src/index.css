@@ -11,6 +11,7 @@ html, body {
   margin: 0; padding: 0;
   overscroll-behavior: none;
   background: #E8E8E8;
+  overflow-x: hidden;   /* prevent horizontal scroll without breaking fixed */
 }
 
 body {
@@ -35,35 +36,30 @@ body {
 
 /* ── Fixed Header ── */
 .app-header {
-  position: fixed !important;
+  position: fixed;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
+  /* center inside max-width container */
+  left: max(0px, calc(50vw - 215px));
+  width: min(100vw, 430px);
   z-index: 9999;
   background: rgba(255,255,255,0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 1px 0 rgba(0,0,0,0.08);
-  will-change: transform;
 }
 
 /* ── Fixed Bottom Nav ── */
 .app-nav {
-  position: fixed !important;
+  position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
+  left: max(0px, calc(50vw - 215px));
+  width: min(100vw, 430px);
   z-index: 9999;
   background: rgba(255,255,255,0.95);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid rgba(0,0,0,0.06);
   box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
-  will-change: transform;
 }
 
 /* ━━ ANIMATIONS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */

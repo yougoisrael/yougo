@@ -15,12 +15,20 @@ export default function BottomNav({ cartCount }) {
     }
   }, [cartCount]);
 
+  const IcoMap = ({ s=22, c="#9CA3AF" }) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+      <line x1="9" y1="3" x2="9" y2="18"/>
+      <line x1="15" y1="6" x2="15" y2="21"/>
+    </svg>
+  );
+
   const items = [
-    { path:"/profile", label:"פרופיל", I:IcoUser   },
-    { path:"/orders",  label:"הזמנות", I:IcoOrders },
-    { path:"/cart",    label:"העגלה",  I:IcoCart   },
-    { path:"/market",  label:"מרקט",   I:IcoStore  },
-    { path:"/",        label:"מסעדות", I:IcoFork   },
+    { path:"/profile", label:"פרופיל", I:IcoUser },
+    { path:"/map",     label:"מפה",    I:IcoMap  },
+    { path:"/cart",    label:"העגלה",  I:IcoCart },
+    { path:"/market",  label:"מרקט",   I:IcoStore},
+    { path:"/",        label:"מסעדות", I:IcoFork },
   ];
 
   return (

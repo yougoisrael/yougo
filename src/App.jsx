@@ -16,6 +16,7 @@ import CardsPage      from "./pages/CardsPage";
 import InvitePage     from "./pages/InvitePage";
 import SupportPage    from "./pages/SupportPage";
 import MarketPage     from "./pages/MarketPage";
+import MapPage        from "./pages/MapPage";
 import BusinessPortal from "./BusinessPortal";
 import AdminReal      from "./AdminReal";
 
@@ -105,6 +106,7 @@ export default function App() {
       <Route path="/cards"          element={<CardsPage guest={guest} onLogin={() => setGuest(false)}/>}/>
       <Route path="/invite"         element={<InvitePage user={user} guest={guest} onLogin={() => setGuest(false)}/>}/>
       <Route path="/support"        element={<SupportPage user={user}/>}/>
+      <Route path="/map"            element={<MapPage cartCount={cartCount}/>}/>
       <Route path="/business"       element={<BusinessPortal onBack={() => window.history.back()}/>}/>
       <Route path="/admin"          element={
         <AdminAuthGuard onBack={() => window.history.back()}>

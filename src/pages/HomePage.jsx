@@ -230,7 +230,7 @@ function Sidebar({ open, onClose, user, navigate }) {
       <div
         onClick={onClose}
         style={{
-          position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:600,
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:10000,
           opacity: open ? 1 : 0,
           pointerEvents: open ? "all" : "none",
           transition:"opacity 0.3s ease",
@@ -239,7 +239,7 @@ function Sidebar({ open, onClose, user, navigate }) {
       {/* Drawer */}
       <div style={{
         position:"fixed", top:0, right:0, bottom:0, width:300, maxWidth:"80vw",
-        background:"white", zIndex:601, display:"flex", flexDirection:"column",
+        background:"white", zIndex:10001, display:"flex", flexDirection:"column",
         transform: open ? "translateX(0)" : "translateX(100%)",
         transition:"transform 0.35s cubic-bezier(0.34,1.1,0.64,1)",
         boxShadow:"-8px 0 40px rgba(0,0,0,0.15)",
@@ -466,6 +466,12 @@ export default function HomePage({ user, guest, cartCount }) {
   const [banner, setBanner] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [headerH, setHeaderH] = useState(106);
+
+  // Lock body scroll when sidebar open
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [sidebarOpen]);
   const headerRef = useRef(null);
 
   useEffect(() => {

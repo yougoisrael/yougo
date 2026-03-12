@@ -24,7 +24,6 @@ body {
   max-width: 430px;
   min-height: 100vh;
   background: #F7F7F8;
-  position: relative;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -36,33 +35,35 @@ body {
 
 /* ── Fixed Header ── */
 .app-header {
-  position: fixed;
+  position: fixed !important;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
   max-width: 430px;
-  z-index: 300;
-  background: rgba(255,255,255,0.88);
+  z-index: 9999;
+  background: rgba(255,255,255,0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 1px 0 rgba(0,0,0,0.08);
+  will-change: transform;
 }
 
 /* ── Fixed Bottom Nav ── */
 .app-nav {
-  position: fixed;
+  position: fixed !important;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
   max-width: 430px;
-  z-index: 300;
-  background: rgba(255,255,255,0.92);
+  z-index: 9999;
+  background: rgba(255,255,255,0.95);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid rgba(0,0,0,0.06);
   box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+  will-change: transform;
 }
 
 /* ━━ ANIMATIONS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */

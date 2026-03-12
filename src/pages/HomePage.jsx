@@ -473,8 +473,12 @@ export default function HomePage({ user, guest, cartCount }) {
 
   useEffect(() => {
     supabase.from("restaurants").select("*").eq("active", true)
+      .or("page_type.eq.restaurant,page_type.is.null")   // only restaurants
       .then(({ data }) => { setRestaurants(data||[]); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        supabase.from("restaurants").select("*").eq("active", true)
+          .then(({ data }) => { setRestaurants(data||[]); setLoading(false); });
+      });
   }, []);
 
   const filtered = restaurants.filter(r => {
@@ -573,7 +577,7 @@ export default function HomePage({ user, guest, cartCount }) {
       {/* CATEGORY ICONS — equal size tiles */}
       {!searchQ && (
         <div style={{ padding:"4px 0 6px" }}>
-          <div style={{ display:"flex", gap:8, overflowX:"auto", padding:"4px 16px", scrollbarWidth:"none" }}>
+          <div style={{ display:"flex", gap:8, overflowX:"auto", paddingTop:4, paddingBottom:8, paddingInlineStart:16, paddingInlineEnd:16, scrollbarWidth:"none" }}>
             {CATS.map(c => {
               const active = cat === c.id;
               return (

@@ -24,14 +24,10 @@ export default function BottomNav({ cartCount }) {
   ];
 
   return (
-    <>
-      {/* spacer so content clears the nav */}
-      <div style={{ height:72 }} />
-
-      <nav className="app-nav" style={{
-        display:"flex", padding:"6px 4px",
-        paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 8px)",
-      }}>
+    <nav className="app-nav" style={{
+      display:"flex", padding:"6px 4px",
+      paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 8px)",
+    }}>
         {items.map(t => {
           const active = pathname === t.path
             || (t.path !== "/" && pathname.startsWith(t.path));
@@ -89,6 +85,5 @@ export default function BottomNav({ cartCount }) {
           );
         })}
       </nav>
-    </>
   );
 }

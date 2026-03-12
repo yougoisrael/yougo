@@ -230,7 +230,7 @@ function Sidebar({ open, onClose, user, navigate }) {
       <div
         onClick={onClose}
         style={{
-          position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:600, pointerEvents:"auto", touchAction:"none",
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:600,
           opacity: open ? 1 : 0,
           pointerEvents: open ? "all" : "none",
           transition:"opacity 0.3s ease",

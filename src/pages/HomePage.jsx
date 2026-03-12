@@ -230,7 +230,7 @@ function Sidebar({ open, onClose, user, navigate }) {
       <div
         onClick={onClose}
         style={{
-          position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:200,
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:600,
           opacity: open ? 1 : 0,
           pointerEvents: open ? "all" : "none",
           transition:"opacity 0.3s ease",
@@ -239,13 +239,14 @@ function Sidebar({ open, onClose, user, navigate }) {
       {/* Drawer */}
       <div style={{
         position:"fixed", top:0, right:0, bottom:0, width:300, maxWidth:"80vw",
-        background:"white", zIndex:201, display:"flex", flexDirection:"column",
+        background:"white", zIndex:601, display:"flex", flexDirection:"column",
         transform: open ? "translateX(0)" : "translateX(100%)",
         transition:"transform 0.35s cubic-bezier(0.34,1.1,0.64,1)",
         boxShadow:"-8px 0 40px rgba(0,0,0,0.15)",
+        overflowY:"auto",
       }}>
         {/* Header */}
-        <div style={{ background:"linear-gradient(135deg,#C8102E,#7B0D1E)", padding:"calc(env(safe-area-inset-top, 0px) + 54px) 20px 24px", position:"relative", flexShrink:0 }}>
+        <div style={{ background:"linear-gradient(135deg,#C8102E,#7B0D1E)", padding:"calc(env(safe-area-inset-top,0px) + 54px) 20px 24px", position:"relative", flexShrink:0 }}>
           <button onClick={onClose} style={{ position:"absolute", top:14, left:14, background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%", width:34, height:34, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
             <IcoBack s={16} c="white" />
           </button>
@@ -258,7 +259,7 @@ function Sidebar({ open, onClose, user, navigate }) {
         </div>
 
         {/* Menu items */}
-        <div style={{ flex:1, padding:"12px 0", overflowY:"auto" }}>
+        <div style={{ flex:1, padding:"12px 0" }}>
           {[
             { icon:<IcoUser s={20} c={C.red}/>,      label:"הפרופיל שלי",    path:"/profile" },
             { icon:<IcoPackage s={20} c={C.red}/>,   label:"ההזמנות שלי",   path:"/orders" },
@@ -298,13 +299,13 @@ function Sidebar({ open, onClose, user, navigate }) {
         </div>
 
         {/* Admin button — bottom */}
-        <div style={{ padding:"16px 20px", paddingBottom:"calc(env(safe-area-inset-bottom, 0px) + 20px)", borderTop:"1px solid #F3F4F6", flexShrink:0 }}>
+        <div style={{ padding:"16px 20px", paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 20px)", borderTop:"1px solid #F3F4F6", flexShrink:0 }}>
           <button
             onClick={() => { navigate("/admin"); onClose(); }}
             style={{ width:"100%", background:"linear-gradient(135deg,#111827,#1F2937)", color:"white", border:"none", borderRadius:16, padding:"14px", fontSize:14, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:10, fontFamily:"Arial,sans-serif" }}>
             <IcoShield s={18} c="#F87171" /> ניהול המערכת
           </button>
-          <div style={{ textAlign:"center", fontSize:10, color:"#9CA3AF", marginTop:8 }}>גרסה 1.0.0</div>
+          <div style={{ textAlign:"center", fontSize:10, color:"#9CA3AF", marginTop:10 }}>גרסה 1.0.0</div>
         </div>
       </div>
     </>
@@ -315,28 +316,15 @@ function Sidebar({ open, onClose, user, navigate }) {
 function HorizRow({ title, items, renderCard, onSeeAll }) {
   return (
     <div style={{ marginBottom:24 }}>
-      {title && (
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"0 16px", marginBottom:10 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-            <IcoFire s={15} />
-            <span style={{ fontSize:16, fontWeight:900, color:C.dark }}>{title}</span>
-          </div>
-          {onSeeAll && <span onClick={onSeeAll} style={{ fontSize:12, color:C.red, fontWeight:700, cursor:"pointer" }}>הכל ←</span>}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"0 16px", marginBottom:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <IcoFire s={15} />
+          <span style={{ fontSize:16, fontWeight:900, color:C.dark }}>{title}</span>
         </div>
-      )}
-      <div style={{
-        display:"flex", gap:12,
-        overflowX:"auto", overflowY:"visible",
-        padding:"4px 16px 8px",
-        scrollbarWidth:"none",
-        WebkitOverflowScrolling:"touch",
-        scrollSnapType:"x mandatory",
-      }}>
-        {items.map((item, i) => (
-          <div key={i} style={{ scrollSnapAlign:"start", flexShrink:0 }}>
-            {renderCard(item, i)}
-          </div>
-        ))}
+        {onSeeAll && <span onClick={onSeeAll} style={{ fontSize:12, color:C.red, fontWeight:700, cursor:"pointer" }}>הכל ←</span>}
+      </div>
+      <div style={{ display:"flex", gap:12, overflowX:"auto", padding:"4px 16px 8px", scrollbarWidth:"none", WebkitOverflowScrolling:"touch" }}>
+        {items.map((item, i) => renderCard(item, i))}
       </div>
     </div>
   );
@@ -396,7 +384,7 @@ function RestCardH({ r, onClick, delay }) {
   );
 }
 
-// ── Restaurant card vertical — Haat style grid ───
+// ── Restaurant card vertical ──────────────────────
 function RestCardV({ r, onClick, delay }) {
   const [pressed, setPressed] = useState(false);
   return (
@@ -407,49 +395,51 @@ function RestCardV({ r, onClick, delay }) {
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
       style={{
-        background:"white", borderRadius:18, overflow:"hidden",
+        background:"white", borderRadius:22, overflow:"hidden",
         cursor: r.active?"pointer":"default", opacity: r.active?1:0.6,
-        boxShadow: pressed?"0 1px 6px rgba(0,0,0,0.08)":"0 3px 14px rgba(0,0,0,0.07)",
-        transform: pressed?"scale(0.97)":"scale(1)",
-        transition:"transform 0.15s ease, box-shadow 0.15s ease",
+        boxShadow: pressed?"0 2px 8px rgba(0,0,0,0.08)":"0 4px 20px rgba(0,0,0,0.07)",
+        transform: pressed?"scale(0.98)":"scale(1)",
+        transition:"transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s ease",
         animation:`slideUp 0.4s cubic-bezier(0.34,1.2,0.64,1) ${delay}ms both`,
       }}
     >
-      {/* Cover */}
-      <div style={{ height:120, background:`linear-gradient(135deg,${hexA(r.cover_color||"#C8102E","22")},${hexA(r.cover_color||"#C8102E","44")})`, display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
-        <span style={{ fontSize:56 }}>{r.logo_emoji||"🍽️"}</span>
+      <div style={{ height:130, background:`linear-gradient(135deg,${hexA(r.cover_color||"#C8102E","22")},${hexA(r.cover_color||"#C8102E","44")})`, display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
+        <span style={{ fontSize:66 }}>{r.logo_emoji||"🍽️"}</span>
         {!r.active && (
           <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <span style={{ color:"white", fontSize:11, fontWeight:700, background:"rgba(0,0,0,0.5)", padding:"3px 10px", borderRadius:20 }}>סגור</span>
+            <span style={{ color:"white", fontSize:12, fontWeight:700, background:"rgba(0,0,0,0.5)", padding:"4px 14px", borderRadius:20 }}>סגור כעת</span>
           </div>
         )}
-        {/* Rating badge */}
-        {r.rating && (
-          <div style={{ position:"absolute", bottom:8, left:8, background:"rgba(0,0,0,0.55)", borderRadius:20, padding:"3px 8px", display:"flex", alignItems:"center", gap:3 }}>
-            <span style={{ fontSize:10 }}>⭐</span>
-            <span style={{ fontSize:11, fontWeight:700, color:"white" }}>{r.rating}</span>
-          </div>
-        )}
-        {r.badge && <span style={{ position:"absolute", top:8, right:8, background:C.green, color:"white", fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:20 }}>{r.badge}</span>}
+        {r.badge && <span style={{ position:"absolute", top:10, right:10, background:C.green, color:"white", fontSize:9, fontWeight:800, padding:"3px 10px", borderRadius:20 }}>{r.badge}</span>}
       </div>
-      {/* Info */}
-      <div style={{ padding:"10px 12px 12px" }}>
-        <div style={{ fontWeight:900, fontSize:14, color:C.dark, marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.name}</div>
-        <div style={{ fontSize:10, color:C.gray, display:"flex", alignItems:"center", gap:2, marginBottom:8, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-          <IcoPin s={9}/>{r.location||r.address||""}
-        </div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:3, background:C.bg, borderRadius:10, padding:"3px 7px" }}>
-            <IcoClock s={10}/>
-            <span style={{ fontSize:10, fontWeight:600, color:C.dark }}>{r.delivery_time||"20-30"} דק'</span>
+      <div style={{ padding:"12px 14px 14px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:900, fontSize:15, color:C.dark }}>{r.name}</div>
+            <div style={{ fontSize:11, color:C.gray, marginTop:2, display:"flex", alignItems:"center", gap:3 }}>
+              <IcoPin s={10} />{r.location||r.address||""}
+            </div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-            <span style={{ width:6, height:6, borderRadius:"50%", background: r.active?C.green:"#EF4444", display:"inline-block" }}/>
-            <span style={{ fontSize:10, color: r.active?C.green:"#EF4444", fontWeight:700 }}>{r.active?"פתוח":"סגור"}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:3, background:"#FFF9EB", borderRadius:20, padding:"3px 9px", flexShrink:0 }}>
+            <span style={{ fontSize:11 }}>⭐</span>
+            <span style={{ fontSize:12, fontWeight:700, color:"#B45309" }}>{r.rating||"4.5"}</span>
           </div>
         </div>
-        <div style={{ marginTop:6, fontSize:10, fontWeight:600, color: r.delivery_fee===0?C.green:C.gray }}>
-          {r.delivery_fee===0?"🚀 משלוח חינם":"₪"+(r.delivery_fee||12)+" משלוח · מינ' ₪"+(r.min_order||40)}
+        <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+          {[
+            { I:IcoClock, t:(r.delivery_time||"20-30")+" דק'" },
+            { I:IcoTruck, t: r.delivery_fee===0?"משלוח חינם":"₪"+(r.delivery_fee||12)+" משלוח" },
+            { I:IcoOrders, t:"מינ' ₪"+(r.min_order||40) },
+          ].map((x,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:4, background:C.bg, borderRadius:20, padding:"4px 10px" }}>
+              <x.I s={11} /><span style={{ fontSize:11, fontWeight:600, color:C.dark }}>{x.t}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:4 }}>
+          <span style={{ width:7, height:7, borderRadius:"50%", background: r.active?C.green:"#EF4444", display:"inline-block" }} />
+          <span style={{ fontSize:12, color: r.active?C.green:"#EF4444", fontWeight:700 }}>{r.active?"פתוח":"סגור"}</span>
+          {r.closing_time && <span style={{ fontSize:11, color:C.gray }}>עד {r.closing_time}</span>}
         </div>
       </div>
     </div>
@@ -491,14 +481,14 @@ export default function HomePage({ user, guest, cartCount }) {
   })).filter(g => g.items.length > 0);
 
   return (
-    <div className="page-enter" style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", direction:"rtl", paddingBottom:90, paddingTop:106 }}>
+    <div className="page-enter" style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", overflowX:"hidden", paddingBottom:90, paddingTop:106 }}>
 
       {/* SIDEBAR */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} navigate={navigate} />
 
-      {/* FIXED HEADER — TopBar + TABS */}
-      <div className="fixed-header">
-       <div className="page-wrap">
+      {/* FIXED HEADER: TopBar + Tabs */}
+      <div className="app-header">
+
         {/* TOP BAR */}
         <div style={{ padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
           {searchOpen ? (
@@ -544,7 +534,7 @@ export default function HomePage({ user, guest, cartCount }) {
             );
           })}
         </div>
-       </div>
+
       </div>
 
       {/* BANNER */}
@@ -605,34 +595,31 @@ export default function HomePage({ user, guest, cartCount }) {
           טוען מסעדות...
         </div>
       ) : searchQ ? (
-        /* ── Search results: horizontal carousel ── */
-        <div>
-          <div style={{ fontSize:13, color:C.gray, padding:"0 16px 8px" }}>תוצאות: {searchQ} ({filtered.length})</div>
-          {filtered.length === 0
-            ? <div style={{ textAlign:"center", padding:"50px 0", color:C.gray }}><div style={{ fontSize:40 }}>🔍</div><div style={{ fontSize:14, fontWeight:600, marginTop:10 }}>לא נמצאו תוצאות</div></div>
-            : <HorizRow title={`תוצאות (${filtered.length})`} items={filtered}
-                renderCard={(r,i) => <RestCardH key={r.id} r={r} delay={i*50} onClick={() => navigate("/restaurant/"+r.id, { state:r })} />}
-              />
-          }
+        <div style={{ padding:"8px 16px" }}>
+          <div style={{ fontSize:13, color:C.gray, marginBottom:12 }}>תוצאות: {searchQ} ({filtered.length})</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {filtered.length===0
+              ? <div style={{ textAlign:"center", padding:"50px 0", color:C.gray }}><div style={{ fontSize:40 }}>🔍</div><div style={{ fontSize:14, fontWeight:600, marginTop:10 }}>לא נמצאו תוצאות</div></div>
+              : filtered.map((r,i) => <RestCardV key={r.id} r={r} onClick={() => navigate("/restaurant/"+r.id, { state:r })} delay={i*60} />)
+            }
+          </div>
         </div>
       ) : cat !== "all" ? (
-        /* ── Category filter: carousel ── */
-        <div>
-          <div style={{ fontSize:16, fontWeight:900, color:C.dark, padding:"4px 16px 8px", display:"flex", alignItems:"center", gap:6 }}>
+        <div style={{ padding:"8px 16px" }}>
+          <div style={{ fontSize:16, fontWeight:900, color:C.dark, marginBottom:14, display:"flex", alignItems:"center", gap:6 }}>
             <IcoFire s={15} />{CATS.find(c=>c.id===cat)?.label} ({filtered.length})
           </div>
-          {filtered.length === 0
-            ? <div style={{ textAlign:"center", padding:"50px 0", color:C.gray }}><div style={{ fontSize:40 }}>🍽️</div><div style={{ fontSize:14, fontWeight:600, marginTop:10 }}>אין מסעדות בקטגוריה זו</div></div>
-            : <HorizRow title="" items={filtered}
-                renderCard={(r,i) => <RestCardH key={r.id} r={r} delay={i*50} onClick={() => navigate("/restaurant/"+r.id, { state:r })} />}
-              />
-          }
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {filtered.length===0
+              ? <div style={{ textAlign:"center", padding:"50px 0", color:C.gray }}><div style={{ fontSize:40 }}>🍽️</div><div style={{ fontSize:14, fontWeight:600, marginTop:10 }}>אין מסעדות בקטגוריה זו</div></div>
+              : filtered.map((r,i) => <RestCardV key={r.id} r={r} onClick={() => navigate("/restaurant/"+r.id, { state:r })} delay={i*60} />)
+            }
+          </div>
         </div>
       ) : (
-        /* ── Main view: carousels per category like Haat ── */
         <>
-          {restaurants.length > 0 && (
-            <HorizRow title="🔥 הכי פופולרי" items={restaurants.slice(0,8)}
+          {restaurants.length>0 && (
+            <HorizRow title="🔥 הכי פופולרי" items={restaurants.slice(0,8)} seeAll
               renderCard={(r,i) => <RestCardH key={r.id} r={r} delay={i*50} onClick={() => navigate("/restaurant/"+r.id, { state:r })} />}
             />
           )}
@@ -641,7 +628,7 @@ export default function HomePage({ user, guest, cartCount }) {
               renderCard={(r,i) => <RestCardH key={r.id} r={r} delay={i*50} onClick={() => navigate("/restaurant/"+r.id, { state:r })} />}
             />
           ))}
-          {restaurants.length === 0 && (
+          {restaurants.length===0 && (
             <div style={{ textAlign:"center", padding:"60px 20px", color:C.gray }}>
               <div style={{ fontSize:50, marginBottom:12 }}>🍽️</div>
               <div style={{ fontSize:15, fontWeight:600, color:C.dark }}>אין מסעדות עדיין</div>

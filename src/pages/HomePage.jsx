@@ -313,17 +313,26 @@ function Sidebar({ open, onClose, user, navigate }) {
 }
 
 // ── Horizontal row ────────────────────────────────
-function HorizRow({ title, items, renderCard, onSeeAll }) {
+function HorizRow({ title, items, renderCard, onSeeAll, titleIcon }) {
   return (
     <div style={{ marginBottom:24 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"0 16px", marginBottom:10 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <IcoFire s={15} />
-          <span style={{ fontSize:16, fontWeight:900, color:C.dark }}>{title}</span>
+      {title && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"0 16px", marginBottom:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            {titleIcon || <IcoFire s={15} />}
+            <span style={{ fontSize:16, fontWeight:900, color:C.dark }}>{title}</span>
+          </div>
+          {onSeeAll && <span onClick={onSeeAll} style={{ fontSize:12, color:C.red, fontWeight:700, cursor:"pointer" }}>הכל ←</span>}
         </div>
-        {onSeeAll && <span onClick={onSeeAll} style={{ fontSize:12, color:C.red, fontWeight:700, cursor:"pointer" }}>הכל ←</span>}
-      </div>
-      <div style={{ display:"flex", gap:12, overflowX:"auto", padding:"4px 16px 8px", scrollbarWidth:"none", WebkitOverflowScrolling:"touch" }}>
+      )}
+      <div style={{
+        display:"flex", gap:12,
+        overflowX:"auto", overflowY:"visible",
+        /* Fix: scrollable padding so first+last cards don't get clipped */
+        paddingTop:4, paddingBottom:12,
+        paddingInlineStart:16, paddingInlineEnd:16,
+        scrollbarWidth:"none", WebkitOverflowScrolling:"touch",
+      }}>
         {items.map((item, i) => renderCard(item, i))}
       </div>
     </div>

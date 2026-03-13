@@ -68,13 +68,15 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
       maxZoom: 14,
       maxBounds: [[32.50, 34.80], [33.50, 35.90]],
       maxBoundsViscosity: 0.85,
-      fadeAnimation: false,
-      markerZoomAnimation: false,
+      fadeAnimation: true,
+      zoomAnimation: true,
+      markerZoomAnimation: true,
+      preferCanvas: true,
     });
 
     L.tileLayer(
       "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19, updateWhenIdle: false, keepBuffer: 4 }
+      { maxZoom: 19, updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 6, crossOrigin: true }
     ).addTo(map);
 
     leafRef.current = map;
@@ -141,7 +143,7 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
     const newPt     = L.point(currentPt.x, currentPt.y + offsetPx);
     const newCenter = map.containerPointToLatLng(newPt);
 
-    map.panTo(newCenter, { animate: true, duration: 0.4, easeLinearity: 0.5 });
+    map.panTo(newCenter, { animate: true, duration: 0.25, easeLinearity: 0.9 });
 
     setSelected(area);
   }
@@ -177,7 +179,9 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
       <style>{`
         @keyframes spin    { to { transform: rotate(360deg); } }
         @keyframes slideUp { from { transform: translateY(110%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes pinPop  { 0%{transform:scale(0.4);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+        @keyframes pinPop    { 0%{transform:scale(0.4);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+        @keyframes circleIn  { 0%{stroke-dashoffset:2000;opacity:0} 100%{stroke-dashoffset:0;opacity:1} }
+        .leaflet-interactive { transition: fill-opacity 0.3s ease, opacity 0.3s ease !important; }
         .mBtn:active { transform: scale(0.91); }
         .leaflet-container { background: #f0ece4 !important; }
         .yg-pin { display:flex; flex-direction:column; align-items:center; animation:pinPop 0.3s ease; cursor:pointer; }
@@ -186,7 +190,7 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
           background:white; border:2.5px solid ${C.red};
           display:flex; align-items:center; justify-content:center;
           box-shadow:0 2px 8px rgba(200,16,46,0.25);
-          transition:all 0.2s ease;
+          transition:all 0.18s cubic-bezier(0.34,1.3,0.64,1);
         }
         .yg-pin-tail {
           width:0; height:0;

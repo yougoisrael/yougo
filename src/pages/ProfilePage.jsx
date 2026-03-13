@@ -1,239 +1,551 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  ProfilePage.jsx
-//  ✅ FIX: name/phone edits saved to Supabase user_metadata
+//  ProfilePage.jsx — Yougo v4
+//  ضيف → مربع هاتف → اسم/عمر/جنس → إيميل+OTP+رقم سري
+//  أو هاتف موجود → رقم سري فقط
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { C, IcoUser, IcoBack, IcoChevDown, IcoShield, IcoPackage, IcoMapPin, IcoCreditCard, IcoCoupon, IcoUsers, IcoBell, IcoHelp, IcoDoc, IcoLock } from "../components/Icons";
+import {
+  C, IcoUser, IcoChevDown, IcoShield, IcoPackage,
+  IcoMapPin, IcoCreditCard, IcoCoupon, IcoUsers,
+  IcoBell, IcoHelp, IcoDoc, IcoLock, IcoBack,
+} from "../components/Icons";
 import BottomNav from "../components/BottomNav";
 import { supabase } from "../lib/supabase";
-import GuestBanner from "../components/GuestBanner";
 
-const MENU_ITEMS = [
-  { Ico: IcoPackage,    label: "ההזמנות שלי",    path: "/orders" },
-  { Ico: IcoMapPin,     label: "כתובות שמורות",  path: null, key: "addresses" },
-  { Ico: IcoCreditCard, label: "אמצעי תשלום",    path: "/cards" },
-  { Ico: IcoCoupon,     label: "הטבות וקופונים",  path: null, key: "coupons" },
-  { Ico: IcoUsers,      label: "הזמן חבר",        path: "/invite" },
-  { Ico: IcoShield,     label: "אבטחה",            path: null, key: "security" },
-  { Ico: IcoBell,       label: "התראות",            path: null, key: "notifications" },
-  { Ico: IcoHelp,       label: "תמיכה",             path: "/support" },
-  { Ico: IcoMapPin,     label: "ניהול מפות אזורים", path: "/admin/zones" },
-  { Ico: IcoDoc,        label: "תנאי שימוש",       path: "/terms" },
-  { Ico: IcoLock,       label: "מדיניות פרטיות",   path: "/privacy" },
-];
+const RED  = "#C8102E";
+const DARK = "#111827";
+const GRAY = "#6B7280";
+const BG   = "#F7F7F8";
+const CSS  = `
+  @keyframes _up  { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes _fd  { from{opacity:0} to{opacity:1} }
+  @keyframes _sp  { to{transform:rotate(360deg)} }
+  *{box-sizing:border-box}
+`;
 
-export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, guest, onLogin }) {
-  const navigate = useNavigate();
-  if (guest) return (
-    <div className="page-enter" style={{ fontFamily: "Arial,sans-serif", background: "#F7F7F8", minHeight: "100vh", maxWidth: 430, margin: "0 auto", direction: "rtl", paddingBottom: 80 }}>
-      <div style={{ background: "linear-gradient(160deg,#C8102E,#9B0B22)", padding: "60px 20px 80px", position: "relative", overflow: "hidden", textAlign: "center" }}>
-        <div style={{ position: "absolute", bottom: -30, left: 0, right: 0, height: 60, background: "#F7F7F8", borderRadius: "50% 50% 0 0" }} />
-        <div style={{ width: 68, height: 68, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 12px", border: "2.5px solid rgba(255,255,255,0.4)" }}><IcoUser s={30} c="white"/></div>
-        <div style={{ color: "white", fontSize: 20, fontWeight: 900 }}>אורח</div>
-        <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, marginTop: 4 }}>אינך מחובר</div>
+// ── helpers ──────────────────────────────────────
+const isPhone = v => { const d=(v||"").replace(/\D/g,""); return d.length>=9&&d.length<=12; };
+const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v||"").trim());
+const pwErr   = v => { if(!v||v.length<6) return "לפחות 6 תווים"; return null; };
+
+function Spin() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+    style={{animation:"_sp .7s linear infinite",flexShrink:0}}>
+    <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2.5"
+      strokeDasharray="40" strokeDashoffset="15" strokeLinecap="round"/>
+  </svg>;
+}
+
+function Modal({ children, onClose }) {
+  return (
+    <div onClick={onClose} style={{
+      position:"fixed",inset:0,zIndex:9000,
+      background:"rgba(0,0,0,0.55)",backdropFilter:"blur(3px)",
+      display:"flex",alignItems:"flex-end",justifyContent:"center",
+      animation:"_fd .2s ease",
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        width:"100%",maxWidth:430,background:"white",
+        borderRadius:"24px 24px 0 0",
+        padding:"20px 22px 36px",
+        animation:"_up .3s cubic-bezier(0.34,1.1,0.64,1)",
+        maxHeight:"90vh",overflowY:"auto",
+      }}>
+        <div style={{width:36,height:4,background:"#E5E7EB",borderRadius:2,margin:"0 auto 20px"}}/>
+        {children}
       </div>
-      <div style={{ padding: "24px 16px" }}>
-        <button onClick={onLogin}
-          style={{ width: "100%", background: "#C8102E", color: "white", border: "none", borderRadius: 16, padding: "15px", fontSize: 15, fontWeight: 900, cursor: "pointer", marginBottom: 10, boxShadow: "0 6px 20px rgba(200,16,46,0.3)" }}>
-          התחבר / הירשם
-        </button>
-        <div style={{ textAlign: "center", fontSize: 12, color: "#9CA3AF" }}>כדי לגשת לפרופיל, הזמנות, קופונים ועוד</div>
-      </div>
-      <BottomNav cartCount={cartCount} />
     </div>
   );
-  const [editing, setEditing]               = useState(false);
-  const [name, setName]                     = useState(user?.name || "משתמש");
-  const [phone, setPhone]                   = useState(user?.phone || "");
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [notifs, setNotifs]                 = useState({ orders: true, promos: true, news: false });
-  const [saving, setSaving]                 = useState(false);
-  const [saveOk, setSaveOk]                 = useState(false);
+}
 
-  const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-
-  function handleNav(item) {
-    if (item.path) { navigate(item.path); return; }
-    if (item.key === "notifications") setEditing("notifications");
-    else if (item.key === "security")  setEditing("security");
-    else if (item.key === "addresses") setEditing("addresses");
-    else if (item.key === "coupons")   setEditing("coupons");
-  }
-
-  // ✅ FIX: Save name to Supabase user_metadata
-  async function saveName() {
-    setSaving(true);
-    const parts = name.trim().split(" ");
-    const firstName = parts[0] || "";
-    const lastName  = parts.slice(1).join(" ") || "";
-    const { error } = await supabase.auth.updateUser({
-      data: { firstName, lastName, phone }
-    });
-    setSaving(false);
-    if (!error) {
-      setSaveOk(true);
-      // ✅ Update parent state so navbar reflects new name immediately
-      if (onUserUpdate) onUserUpdate({ name: name.trim(), firstName, phone });
-      setTimeout(() => setSaveOk(false), 2000);
-    }
-    setEditing(false);
-  }
-
+function Inp({ label, value, onChange, placeholder, type="text", dir="rtl", maxLen, autoFocus, prefix }) {
+  const [f,setF] = useState(false);
   return (
-    <div style={{ fontFamily: "Arial,sans-serif", background: C.bg, minHeight: "100vh", maxWidth: 430, margin: "0 auto", direction: "rtl", paddingBottom: 80 }}>
+    <div style={{marginBottom:14}}>
+      {label && <div style={{fontSize:12,fontWeight:700,color:GRAY,marginBottom:6,direction:"rtl"}}>{label}</div>}
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        {prefix && (
+          <div style={{background:"white",border:"1.5px solid #E5E7EB",borderRadius:14,padding:"12px 10px",
+            display:"flex",alignItems:"center",gap:5,flexShrink:0,fontSize:12,fontWeight:700}}>
+            🇮🇱 +972
+          </div>
+        )}
+        <input value={value} onChange={onChange} placeholder={placeholder} type={type}
+          maxLength={maxLen} autoFocus={autoFocus} dir={dir}
+          onFocus={()=>setF(true)} onBlur={()=>setF(false)}
+          style={{
+            width:"100%",padding:"13px 14px",
+            border:`1.5px solid ${f?RED:"#E5E7EB"}`,borderRadius:14,
+            fontSize:14,outline:"none",background:"white",
+            direction:dir,fontFamily:"inherit",color:DARK,
+            transition:"border-color .15s",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Btn({ children, onClick, loading, disabled, variant="red" }) {
+  const bg = variant==="red" ? (disabled||loading ? "rgba(200,16,46,0.5)" : RED) : "#F3F4F6";
+  const color = variant==="red" ? "white" : DARK;
+  return (
+    <button onClick={onClick} disabled={disabled||loading} style={{
+      width:"100%",padding:"14px",borderRadius:16,border:"none",
+      background:bg,color,fontSize:14,fontWeight:800,
+      cursor:disabled||loading?"not-allowed":"pointer",
+      display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+      fontFamily:"inherit",
+      boxShadow: variant==="red" ? "0 6px 20px rgba(200,16,46,.25)" : "none",
+      transition:"all .15s",
+    }}>
+      {loading && <Spin/>}
+      {children}
+    </button>
+  );
+}
+
+function Err({ msg }) {
+  if (!msg) return null;
+  return <div style={{color:"#EF4444",fontSize:12,fontWeight:600,marginTop:-8,marginBottom:10,direction:"rtl"}}>{msg}</div>;
+}
+
+// ── MENU ─────────────────────────────────────────
+const MENU_ITEMS = [
+  { Ico:IcoPackage,    label:"ההזמנות שלי",    path:"/orders" },
+  { Ico:IcoCreditCard, label:"אמצעי תשלום",    path:"/cards" },
+  { Ico:IcoUsers,      label:"הזמן חבר",        path:"/invite" },
+  { Ico:IcoBell,       label:"התראות",           key:"notifs" },
+  { Ico:IcoHelp,       label:"תמיכה",            path:"/support" },
+  { Ico:IcoMapPin,     label:"ניהול אזורים",     path:"/admin/zones" },
+  { Ico:IcoDoc,        label:"תנאי שימוש",       path:"/terms" },
+  { Ico:IcoLock,       label:"מדיניות פרטיות",   path:"/privacy" },
+];
+
+// ════════════════════════════════════════════════
+//  MAIN
+// ════════════════════════════════════════════════
+export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, guest, onAuthDone }) {
+  const navigate = useNavigate();
+
+  // حالة التسجيل المتعدد الخطوات
+  const [modal,      setModal]      = useState(null); // null | "phone" | "info" | "email" | "otp" | "password" | "login-pw"
+  const [phone,      setPhone]      = useState("");
+  const [phoneErr,   setPhoneErr]   = useState("");
+  const [phoneBusy,  setPhoneBusy]  = useState(false);
+  const [regInfo,    setRegInfo]    = useState({ firstName:"", lastName:"", age:"", gender:"" });
+  const [infoErr,    setInfoErr]    = useState({});
+  const [email,      setEmail]      = useState("");
+  const [emailErr,   setEmailErr]   = useState("");
+  const [emailBusy,  setEmailBusy]  = useState(false);
+  const [otp,        setOtp]        = useState(["","","","","",""]);
+  const [otpErr,     setOtpErr]     = useState("");
+  const [otpBusy,    setOtpBusy]    = useState(false);
+  const [otpTimer,   setOtpTimer]   = useState(60);
+  const [canResend,  setCanResend]  = useState(false);
+  const [pass,       setPass]       = useState("");
+  const [pass2,      setPass2]      = useState("");
+  const [passErr,    setPassErr]    = useState("");
+  const [passBusy,   setPassBusy]   = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
+
+  // OTP timer
+  useEffect(() => {
+    if (modal !== "otp") return;
+    setOtpTimer(60); setCanResend(false);
+    const t = setInterval(() => setOtpTimer(p => {
+      if (p <= 1) { clearInterval(t); setCanResend(true); return 0; }
+      return p - 1;
+    }), 1000);
+    return () => clearInterval(t);
+  }, [modal]);
+
+  // ── STEP 1: Phone check ──────────────────────
+  async function doPhone() {
+    setPhoneErr("");
+    const raw = phone.replace(/\D/g,"");
+    if (!isPhone(raw)) { setPhoneErr("הזן מספר טלפון תקין"); return; }
+    setPhoneBusy(true);
+
+    // فحص إذا الهاتف موجود
+    let found = null;
+    for (const v of [raw, raw.replace(/^0/,""), "0"+raw.replace(/^0/,"")]) {
+      const { data } = await supabase.from("users").select("email").eq("phone",v).maybeSingle();
+      if (data?.email) { found = data.email; break; }
+    }
+    setPhoneBusy(false);
+
+    if (found) {
+      // مستخدم موجود — اطلب رقم السري فقط
+      setEmail(found);
+      setModal("login-pw");
+    } else {
+      // جديد — انتقل لمعلومات
+      setModal("info");
+    }
+  }
+
+  // ── STEP 2: Info ─────────────────────────────
+  function doInfo() {
+    const e = {};
+    if (!regInfo.firstName.trim()) e.firstName = "שדה חובה";
+    if (!regInfo.lastName.trim())  e.lastName  = "שדה חובה";
+    const a = parseInt(regInfo.age);
+    if (!regInfo.age || isNaN(a) || a<13 || a>100) e.age = "גיל 13-100";
+    if (!regInfo.gender) e.gender = "בחר מגדר";
+    if (Object.keys(e).length) { setInfoErr(e); return; }
+    setInfoErr({});
+    setModal("email");
+  }
+
+  // ── STEP 3: Send OTP ─────────────────────────
+  async function doSendOtp() {
+    setEmailErr("");
+    const e = email.trim().toLowerCase();
+    if (!isEmail(e)) { setEmailErr("הזן אימייל תקין"); return; }
+    setEmailBusy(true);
+    const { error } = await supabase.auth.signInWithOtp({ email:e, options:{ shouldCreateUser:true }});
+    setEmailBusy(false);
+    if (error) {
+      setEmailErr(error.status===429 ? "יותר מדי בקשות — המתן דקה" : "שגיאה: "+(error.message||"נסה שוב"));
+      return;
+    }
+    setOtp(["","","","","",""]);
+    setOtpErr("");
+    setModal("otp");
+  }
+
+  // ── STEP 4: Verify OTP ───────────────────────
+  function onDigit(i, v) {
+    if (!/^\d*$/.test(v)) return;
+    const n = [...otp]; n[i] = v.slice(-1); setOtp(n); setOtpErr("");
+    if (v && i < 5) document.getElementById("o"+(i+1))?.focus();
+    if (n.join("").length === 6) doVerifyOtp(n.join(""));
+  }
+  function onBk(i, e) { if (e.key==="Backspace" && !otp[i] && i>0) document.getElementById("o"+(i-1))?.focus(); }
+
+  async function doVerifyOtp(code) {
+    setOtpBusy(true);
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(), token: code, type: "email"
+    });
+    setOtpBusy(false);
+    if (error) {
+      setOtpErr("הקוד שגוי — נסה שוב");
+      setOtp(["","","","","",""]);
+      setTimeout(() => document.getElementById("o0")?.focus(), 100);
+      return;
+    }
+    setModal("password");
+  }
+
+  // ── STEP 5: Set password + save ──────────────
+  async function doSetPassword() {
+    setPassErr("");
+    const pe = pwErr(pass);
+    if (pe) { setPassErr(pe); return; }
+    if (pass !== pass2) { setPassErr("הסיסמאות אינן תואמות"); return; }
+    setPassBusy(true);
+
+    const meta = {
+      firstName: regInfo.firstName.trim(),
+      lastName:  regInfo.lastName.trim(),
+      phone:     phone.replace(/\D/g,""),
+      gender:    regInfo.gender,
+      age:       regInfo.age,
+    };
+
+    const { error: pwError } = await supabase.auth.updateUser({ password: pass, data: meta });
+    if (pwError) { setPassErr("שגיאה: "+(pwError.message||"נסה שוב")); setPassBusy(false); return; }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase.from("users").upsert({
+        id:    session.user.id,
+        name:  meta.firstName+" "+meta.lastName,
+        phone: meta.phone,
+        email: email.trim().toLowerCase(),
+      });
+      onAuthDone?.({
+        id:        session.user.id,
+        email:     session.user.email,
+        name:      meta.firstName+" "+meta.lastName,
+        firstName: meta.firstName,
+        phone:     meta.phone,
+        gender:    meta.gender,
+        age:       meta.age,
+      });
+    }
+    setPassBusy(false);
+    setModal(null);
+  }
+
+  // ── Login existing: password only ────────────
+  async function doLoginWithPw() {
+    setPassErr("");
+    if (!pass) { setPassErr("הזן סיסמה"); return; }
+    setPassBusy(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    setPassBusy(false);
+    if (error) { setPassErr("סיסמה שגויה — נסה שוב"); return; }
+    const m = data.user?.user_metadata || {};
+    onAuthDone?.({
+      id:        data.user.id,
+      email:     data.user.email,
+      name:      (m.firstName||"")+" "+(m.lastName||""),
+      firstName: m.firstName||"",
+      phone:     m.phone||"",
+      gender:    m.gender||"",
+      age:       m.age||"",
+    });
+    setModal(null);
+  }
+
+  // ─────────────────────────────────────────────
+  //  GUEST VIEW
+  // ─────────────────────────────────────────────
+  if (guest) return (
+    <div style={{ fontFamily:"Arial,sans-serif", background:BG, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", paddingBottom:80 }}>
+      <style>{CSS}</style>
 
       {/* Header */}
-      <div style={{ background: "linear-gradient(160deg,#C8102E,#9B0B22)", padding: "44px 20px 70px", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", bottom: -30, left: 0, right: 0, height: 60, background: C.bg, borderRadius: "50% 50% 0 0" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 68, height: 68, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, color: "white", border: "2.5px solid rgba(255,255,255,0.5)", flexShrink: 0 }}>
+      <div style={{ background:"linear-gradient(160deg,#C8102E,#9B0B22)", padding:"60px 20px 80px", position:"relative", overflow:"hidden", textAlign:"center" }}>
+        <div style={{ position:"absolute", bottom:-30, left:0, right:0, height:60, background:BG, borderRadius:"50% 50% 0 0" }}/>
+        <div style={{ width:72, height:72, borderRadius:"50%", background:"rgba(255,255,255,0.18)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", border:"2.5px solid rgba(255,255,255,0.35)" }}>
+          <IcoUser s={34} c="white"/>
+        </div>
+        <div style={{ color:"white", fontSize:22, fontWeight:900 }}>אורח</div>
+        <div style={{ color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:4 }}>התחבר לחוויה מלאה</div>
+      </div>
+
+      <div style={{ padding:"24px 18px" }}>
+        {/* فوائد التسجيل */}
+        <div style={{ background:"white", borderRadius:18, padding:"18px", marginBottom:16, boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontWeight:900, fontSize:15, color:DARK, marginBottom:14, textAlign:"center" }}>למה להירשם? 🚀</div>
+          {[
+            { e:"📦", t:"מעקב הזמנות בזמן אמת" },
+            { e:"💳", t:"שמור אמצעי תשלום" },
+            { e:"🎁", t:"קופונים והטבות בלעדיות" },
+            { e:"⚡", t:"הזמנה מהירה יותר" },
+          ].map((x,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 0", borderBottom:i<3?"1px solid #F3F4F6":"none" }}>
+              <span style={{ fontSize:20 }}>{x.e}</span>
+              <span style={{ fontSize:13, fontWeight:600, color:DARK }}>{x.t}</span>
+            </div>
+          ))}
+        </div>
+
+        <Btn onClick={() => { setPhone(""); setPhoneErr(""); setModal("phone"); }}>
+          📱 הירשם / התחבר
+        </Btn>
+      </div>
+
+      {/* ── MODAL: Phone ── */}
+      {modal === "phone" && (
+        <Modal onClose={() => setModal(null)}>
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div style={{ fontSize:36, marginBottom:8 }}>📱</div>
+            <div style={{ fontSize:20, fontWeight:900, color:DARK }}>מספר טלפון</div>
+            <div style={{ fontSize:13, color:GRAY, marginTop:4 }}>הירשם או התחבר עם מספר הטלפון שלך</div>
+          </div>
+          <Inp value={phone} onChange={e => { setPhone(e.target.value.replace(/[^\d-]/g,"")); setPhoneErr(""); }}
+            placeholder="05X-XXX-XXXX" dir="ltr" maxLen={12} autoFocus prefix />
+          <Err msg={phoneErr}/>
+          <Btn onClick={doPhone} loading={phoneBusy}>המשך →</Btn>
+        </Modal>
+      )}
+
+      {/* ── MODAL: Info ── */}
+      {modal === "info" && (
+        <Modal onClose={() => setModal("phone")}>
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div style={{ fontSize:36, marginBottom:8 }}>👤</div>
+            <div style={{ fontSize:20, fontWeight:900, color:DARK }}>פרטים אישיים</div>
+            <div style={{ fontSize:13, color:GRAY, marginTop:4 }}>ספר לנו קצת על עצמך</div>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <div style={{ flex:1 }}>
+              <Inp label="שם פרטי *" value={regInfo.firstName}
+                onChange={e => setRegInfo(p=>({...p,firstName:e.target.value}))}
+                placeholder="שם פרטי" autoFocus/>
+              <Err msg={infoErr.firstName}/>
+            </div>
+            <div style={{ flex:1 }}>
+              <Inp label="שם משפחה *" value={regInfo.lastName}
+                onChange={e => setRegInfo(p=>({...p,lastName:e.target.value}))}
+                placeholder="שם משפחה"/>
+              <Err msg={infoErr.lastName}/>
+            </div>
+          </div>
+          <Inp label="גיל *" value={regInfo.age}
+            onChange={e => setRegInfo(p=>({...p,age:e.target.value.replace(/\D/g,"")}))}
+            placeholder="גיל (13-100)" maxLen={3}/>
+          <Err msg={infoErr.age}/>
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:GRAY, marginBottom:6 }}>מגדר *</div>
+            <div style={{ display:"flex", gap:8 }}>
+              {[{v:"male",l:"זכר 👨"},{v:"female",l:"נקבה 👩"},{v:"other",l:"אחר 🧑"}].map(g => (
+                <button key={g.v} onClick={() => setRegInfo(p=>({...p,gender:g.v}))} style={{
+                  flex:1, padding:"11px 4px", borderRadius:14,
+                  border:`2px solid ${regInfo.gender===g.v?RED:"#E5E7EB"}`,
+                  background:regInfo.gender===g.v?"rgba(200,16,46,0.06)":"white",
+                  cursor:"pointer", fontSize:11, fontWeight:regInfo.gender===g.v?700:500,
+                  color:regInfo.gender===g.v?RED:GRAY, fontFamily:"inherit", transition:"all .15s",
+                }}>{g.l}</button>
+              ))}
+            </div>
+            <Err msg={infoErr.gender}/>
+          </div>
+          <Btn onClick={doInfo}>המשך →</Btn>
+        </Modal>
+      )}
+
+      {/* ── MODAL: Email ── */}
+      {modal === "email" && (
+        <Modal onClose={() => setModal("info")}>
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div style={{ fontSize:36, marginBottom:8 }}>✉️</div>
+            <div style={{ fontSize:20, fontWeight:900, color:DARK }}>כתובת אימייל</div>
+            <div style={{ fontSize:13, color:GRAY, marginTop:4 }}>נשלח לך קוד אימות של 6 ספרות</div>
+          </div>
+          <Inp value={email} onChange={e => { setEmail(e.target.value); setEmailErr(""); }}
+            placeholder="example@email.com" type="email" dir="ltr" autoFocus/>
+          <Err msg={emailErr}/>
+          <Btn onClick={doSendOtp} loading={emailBusy}>שלח קוד →</Btn>
+        </Modal>
+      )}
+
+      {/* ── MODAL: OTP ── */}
+      {modal === "otp" && (
+        <Modal onClose={() => setModal("email")}>
+          <div style={{ textAlign:"center", marginBottom:22 }}>
+            <div style={{ fontSize:36, marginBottom:8 }}>🔐</div>
+            <div style={{ fontSize:20, fontWeight:900, color:DARK }}>קוד אימות</div>
+            <div style={{ fontSize:13, color:GRAY, marginTop:4 }}>שלחנו קוד 6 ספרות ל-<b style={{color:DARK}}>{email}</b></div>
+          </div>
+          <div style={{ display:"flex", gap:8, justifyContent:"center", direction:"ltr", marginBottom:14 }}>
+            {otp.map((d,i) => (
+              <input key={i} id={"o"+i} value={d} maxLength={1} autoFocus={i===0}
+                onChange={e => onDigit(i,e.target.value)} onKeyDown={e => onBk(i,e)}
+                style={{
+                  width:46, height:56, textAlign:"center", fontSize:24, fontWeight:900,
+                  border:`2px solid ${otpErr?RED:d?RED:"#E5E7EB"}`,
+                  borderRadius:14, outline:"none",
+                  background:d?"rgba(200,16,46,0.05)":"white",
+                  color:otpErr?"#EF4444":DARK, fontFamily:"inherit",
+                  transition:"border-color .15s",
+                }}
+              />
+            ))}
+          </div>
+          {otpErr && <div style={{textAlign:"center",color:"#EF4444",fontSize:13,fontWeight:600,marginBottom:12}}>{otpErr}</div>}
+          {otpBusy && <div style={{textAlign:"center",padding:8,color:GRAY,fontSize:13}}>מאמת...</div>}
+          <div style={{ textAlign:"center", marginTop:10 }}>
+            {canResend
+              ? <button onClick={doSendOtp} style={{background:"none",border:"none",color:RED,fontSize:13,fontWeight:700,cursor:"pointer"}}>שלח קוד חדש</button>
+              : <div style={{color:GRAY,fontSize:13}}>שלח שוב בעוד <b style={{color:RED}}>{otpTimer}</b> שניות</div>
+            }
+          </div>
+        </Modal>
+      )}
+
+      {/* ── MODAL: Set Password ── */}
+      {modal === "password" && (
+        <Modal onClose={() => {}}>
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div style={{ fontSize:36, marginBottom:8 }}>🔑</div>
+            <div style={{ fontSize:20, fontWeight:900, color:DARK }}>בחר סיסמה</div>
+            <div style={{ fontSize:13, color:GRAY, marginTop:4 }}>לפחות 6 תווים</div>
+          </div>
+          <Inp label="סיסמה *" value={pass} onChange={e => { setPass(e.target.value); setPassErr(""); }}
+            type="password" placeholder="הסיסמה שלך" dir="ltr" autoFocus/>
+          <Inp label="אימות סיסמה *" value={pass2} onChange={e => { setPass2(e.target.value); setPassErr(""); }}
+            type="password" placeholder="חזור על הסיסמה" dir="ltr"/>
+          <Err msg={passErr}/>
+          <Btn onClick={doSetPassword} loading={passBusy}>צור חשבון ✓</Btn>
+        </Modal>
+      )}
+
+      {/* ── MODAL: Login with password (existing user) ── */}
+      {modal === "login-pw" && (
+        <Modal onClose={() => setModal("phone")}>
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div style={{ fontSize:36, marginBottom:8 }}>👋</div>
+            <div style={{ fontSize:20, fontWeight:900, color:DARK }}>ברוך הבא!</div>
+            <div style={{ fontSize:13, color:GRAY, marginTop:4 }}>חשבון קיים — הזן את הסיסמה</div>
+          </div>
+          <Inp label="סיסמה" value={pass} onChange={e => { setPass(e.target.value); setPassErr(""); }}
+            type="password" placeholder="הסיסמה שלך" dir="ltr" autoFocus/>
+          <Err msg={passErr}/>
+          <Btn onClick={doLoginWithPw} loading={passBusy}>כניסה →</Btn>
+          <div style={{ textAlign:"center", marginTop:14 }}>
+            <button onClick={() => { setModal("email"); setEmail(""); }} style={{
+              background:"none",border:"none",color:RED,fontSize:12,fontWeight:600,cursor:"pointer"
+            }}>שכחתי סיסמה — אמת עם אימייל</button>
+          </div>
+        </Modal>
+      )}
+
+      <BottomNav cartCount={cartCount}/>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────
+  //  LOGGED IN VIEW
+  // ─────────────────────────────────────────────
+  const initials = (user?.name||"U").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+
+  return (
+    <div style={{ fontFamily:"Arial,sans-serif", background:BG, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", paddingBottom:80 }}>
+      <style>{CSS}</style>
+
+      {/* Header */}
+      <div style={{ background:"linear-gradient(160deg,#C8102E,#9B0B22)", padding:"44px 20px 70px", position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", bottom:-30, left:0, right:0, height:60, background:BG, borderRadius:"50% 50% 0 0" }}/>
+        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+          <div style={{ width:68, height:68, borderRadius:"50%", background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:900, color:"white", border:"2.5px solid rgba(255,255,255,0.5)", flexShrink:0 }}>
             {initials}
           </div>
-          <div style={{ flex: 1 }}>
-            {editing === "name" ? (
-              <div>
-                <input value={name} onChange={e => setName(e.target.value)} autoFocus
-                  style={{ background: "rgba(255,255,255,0.15)", border: "none", borderBottom: "2px solid white", color: "white", fontSize: 18, fontWeight: 900, outline: "none", width: "100%", fontFamily: "Arial,sans-serif", marginBottom: 6 }} />
-                <input value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d-]/g, ""))}
-                  placeholder="מספר טלפון"
-                  style={{ background: "rgba(255,255,255,0.1)", border: "none", borderBottom: "1px solid rgba(255,255,255,0.4)", color: "rgba(255,255,255,0.9)", fontSize: 13, outline: "none", width: "100%", fontFamily: "Arial,sans-serif", direction: "ltr", textAlign: "right", marginBottom: 8 }} />
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={saveName} disabled={saving}
-                    style={{ background: "white", color: C.red, border: "none", borderRadius: 10, padding: "7px 16px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-                    {saving ? "שומר..." : saveOk ? "✅ נשמר" : "שמור"}
-                  </button>
-                  <button onClick={() => setEditing(false)}
-                    style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "none", borderRadius: 10, padding: "7px 12px", fontSize: 12, cursor: "pointer" }}>
-                    ביטול
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ color: "white", fontSize: 20, fontWeight: 900 }}>{name}</div>
-                  <button onClick={() => setEditing("name")} style={{ background: "none", border: "none", cursor: "pointer", opacity: 0.7, fontSize: 14 }}>✏️</button>
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, marginTop: 3 }}>{user?.email || phone || "לחץ לעריכה"}</div>
-                {saveOk && <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 11, marginTop: 4 }}>✅ השינויים נשמרו</div>}
-              </div>
-            )}
+          <div style={{ flex:1 }}>
+            <div style={{ color:"white", fontSize:20, fontWeight:900 }}>{user?.name||"משתמש"}</div>
+            <div style={{ color:"rgba(255,255,255,0.75)", fontSize:13, marginTop:3 }}>{user?.email||user?.phone||""}</div>
           </div>
         </div>
       </div>
 
-      {/* Notifications sub-panel */}
-      {editing === "notifications" && (
-        <div style={{ background: "white", borderRadius: 18, margin: "0 16px 12px", padding: "16px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: C.dark }}>התראות</div>
-            <button onClick={() => setEditing(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.gray, fontSize: 12 }}>✕</button>
-          </div>
-          {[{ k: "orders", l: "עדכוני הזמנות" }, { k: "promos", l: "מבצעים והטבות" }, { k: "news", l: "חדשות ועדכונים" }].map(n => (
-            <div key={n.k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid " + C.lightGray }}>
-              <span style={{ fontSize: 14, color: C.dark }}>{n.l}</span>
-              <div onClick={() => setNotifs(p => ({ ...p, [n.k]: !p[n.k] }))}
-                style={{ width: 44, height: 24, borderRadius: 12, background: notifs[n.k] ? C.red : C.lightGray, cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-                <div style={{ position: "absolute", top: 2, left: notifs[n.k] ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "white", boxShadow: "0 1px 4px rgba(0,0,0,0.2)", transition: "left 0.2s" }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Security sub-panel */}
-      {editing === "security" && (
-        <div style={{ background: "white", borderRadius: 18, margin: "0 16px 12px", padding: "16px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: C.dark }}>אבטחה</div>
-            <button onClick={() => setEditing(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.gray, fontSize: 12 }}>✕</button>
-          </div>
-          <div style={{ fontSize: 13, color: C.gray, lineHeight: 1.6 }}>
-            חשבונך מאובטח באמצעות OTP לאימייל <strong style={{ color: C.dark }}>{user?.email}</strong>.<br />
-            לשינוי אימייל, פנה לתמיכה.
-          </div>
-          <button onClick={() => navigate("/support")}
-            style={{ marginTop: 14, background: C.ultra, border: "none", borderRadius: 12, padding: "10px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", color: C.dark }}>
-            📞 פנה לתמיכה
-          </button>
-        </div>
-      )}
-
-      {/* Coupons sub-panel */}
-      {editing === "coupons" && (
-        <div style={{ background: "white", borderRadius: 18, margin: "0 16px 12px", padding: "16px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: C.dark }}>קופונים</div>
-            <button onClick={() => setEditing(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.gray, fontSize: 12 }}>✕</button>
-          </div>
-          <div style={{ background: "linear-gradient(135deg,#C8102E,#9B0B22)", borderRadius: 14, padding: "14px", marginBottom: 10 }}>
-            <div style={{ color: "white", fontWeight: 900, fontSize: 16, letterSpacing: 1 }}>NAAT10</div>
-            <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 4 }}>10% הנחה על כל הזמנה</div>
-          </div>
-          <div style={{ fontSize: 12, color: C.gray }}>השתמש בקוד NAAT10 בעגלה לקבלת ההנחה</div>
-        </div>
-      )}
-
-      {/* Addresses sub-panel */}
-      {editing === "addresses" && (
-        <div style={{ background: "white", borderRadius: 18, margin: "0 16px 12px", padding: "16px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: C.dark }}>כתובות שמורות</div>
-            <button onClick={() => setEditing(false)} style={{ background: "none", border: "none", cursor: "pointer", color: C.gray, fontSize: 12 }}>✕</button>
-          </div>
-          {["הבית — רחוב הרצל 12, תל אביב", "העבודה — דרך מנחם בגין 50, תל אביב"].map((a, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid " + C.lightGray }}>
-              <span style={{ fontSize: 18 }}>{i === 0 ? "🏠" : "🏢"}</span>
-              <span style={{ fontSize: 13, color: C.dark }}>{a}</span>
-            </div>
-          ))}
-          <button style={{ marginTop: 12, background: C.ultra, border: "1.5px dashed " + C.lightGray, borderRadius: 12, padding: "10px", width: "100%", fontSize: 13, fontWeight: 600, cursor: "pointer", color: C.gray }}>
-            + הוסף כתובת חדשה
-          </button>
-        </div>
-      )}
-
-      {/* Menu list */}
-      <div style={{ padding: "0 16px" }}>
-        <div style={{ background: "white", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16 }}>
-          {MENU_ITEMS.map((item, i) => (
-            <div key={i} onClick={() => handleNav(item)}
-              style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer", borderBottom: i < MENU_ITEMS.length - 1 ? "1px solid " + C.ultra : "none", background: "white" }}>
-              <span style={{ width: 32, display: "flex", alignItems: "center" }}><item.Ico s={20} c={C.red} /></span>
-              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: C.dark }}>{item.label}</span>
-              <IcoChevDown s={14} c={C.gray} />
+      {/* Menu */}
+      <div style={{ padding:"0 16px" }}>
+        <div style={{ background:"white", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 10px rgba(0,0,0,0.07)", marginBottom:16 }}>
+          {MENU_ITEMS.map((item,i) => (
+            <div key={i} onClick={() => item.path && navigate(item.path)}
+              style={{ display:"flex", alignItems:"center", padding:"14px 16px", cursor:"pointer",
+                borderBottom:i<MENU_ITEMS.length-1?"1px solid #F3F4F6":"none", background:"white" }}>
+              <span style={{ width:32, display:"flex", alignItems:"center" }}><item.Ico s={20} c={RED}/></span>
+              <span style={{ flex:1, fontSize:14, fontWeight:600, color:DARK }}>{item.label}</span>
+              <IcoChevDown s={14} c={GRAY}/>
             </div>
           ))}
         </div>
 
-        {/* Logout */}
-        {!showLogoutConfirm ? (
-          <button onClick={() => setShowLogoutConfirm(true)}
-            style={{ width: "100%", background: "white", color: "#EF4444", border: "2px solid #FEE2E2", borderRadius: 16, padding: "14px", fontSize: 14, fontWeight: 800, cursor: "pointer", marginBottom: 12 }}>
+        {!showLogout ? (
+          <button onClick={() => setShowLogout(true)} style={{ width:"100%", background:"white", color:"#EF4444", border:"2px solid #FEE2E2", borderRadius:16, padding:"14px", fontSize:14, fontWeight:800, cursor:"pointer", marginBottom:12 }}>
             התנתקות
           </button>
         ) : (
-          <div style={{ background: "white", borderRadius: 16, padding: "16px", marginBottom: 12, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", textAlign: "center" }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: C.dark, marginBottom: 8 }}>בטוח שאתה רוצה להתנתק?</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowLogoutConfirm(false)}
-                style={{ flex: 1, background: C.ultra, border: "none", borderRadius: 12, padding: "12px", fontSize: 14, fontWeight: 700, cursor: "pointer", color: C.dark }}>
-                ביטול
-              </button>
-              <button onClick={onLogout}
-                style={{ flex: 1, background: "#EF4444", border: "none", borderRadius: 12, padding: "12px", fontSize: 14, fontWeight: 700, cursor: "pointer", color: "white" }}>
-                התנתק
-              </button>
+          <div style={{ background:"white", borderRadius:16, padding:"16px", marginBottom:12, boxShadow:"0 2px 10px rgba(0,0,0,0.07)", textAlign:"center" }}>
+            <div style={{ fontWeight:700, fontSize:15, color:DARK, marginBottom:8 }}>בטוח שאתה רוצה להתנתק?</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowLogout(false)} style={{ flex:1, background:"#F3F4F6", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer", color:DARK }}>ביטול</button>
+              <button onClick={onLogout} style={{ flex:1, background:"#EF4444", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer", color:"white" }}>התנתק</button>
             </div>
           </div>
         )}
 
-        <div style={{ textAlign: "center", color: C.gray, fontSize: 11, marginBottom: 8 }}>YOUGO v2.0 · כل الحقوق محفوظة</div>
+        <div style={{ textAlign:"center", color:GRAY, fontSize:11, marginBottom:8 }}>YOUGO v2.0</div>
       </div>
 
-      <BottomNav cartCount={cartCount} />
-      <style>{`*{box-sizing:border-box}`}</style>
+      <BottomNav cartCount={cartCount}/>
     </div>
   );
 }

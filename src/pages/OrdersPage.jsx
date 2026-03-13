@@ -6,7 +6,6 @@ import { useNavigate } from "react-router-dom";
 import { C, IcoCheck, IcoFork, IcoPackage, IcoClose } from "../components/Icons";
 import BottomNav from "../components/BottomNav";
 import { supabase } from "../lib/supabase";
-import GuestBanner from "../components/GuestBanner";
 
 const TABS = [
   { key: "all",       label: "הכל" },

@@ -197,7 +197,7 @@ export default function App() {
       }/>
       <Route path="/privacy"  element={<PrivacyPage/>}/>
       <Route path="/terms"    element={<TermsPage/>}/>
-      <Route path="/cards"    element={<CardsPage guest={!authed} onLogin={() => {}}/>}/>
+      <Route path="/cards"    element={<CardsPage guest={!authed} user={user} onLogin={(u)=>{ if(u){setUser(u);setAuthed(true);} }} cartCount={cartCount}/>}/>
       <Route path="/invite"   element={<InvitePage user={user} guest={!authed} onLogin={() => {}}/>}/>
       <Route path="/support"  element={<SupportPage user={user}/>}/>
       <Route path="/address"  element={<AddressPickerPage onAddressSave={handleAreaSelect} user={user} guest={!authed}/>}/>

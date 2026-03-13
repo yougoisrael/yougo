@@ -455,7 +455,7 @@ function RestCardV({ r, onClick, delay }) {
 }
 
 // ── MAIN ─────────────────────────────────────────
-export default function HomePage({ user, guest, cartCount }) {
+export default function HomePage({ user, guest, cartCount, selectedArea, onAreaSelect }) {
   const navigate = useNavigate();
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -464,6 +464,15 @@ export default function HomePage({ user, guest, cartCount }) {
   const [cat, setCat] = useState("all");
   const [banner, setBanner] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ✅ لو ما اختار منطقة — افتح صفحة الخريطة
+  useEffect(() => {
+    if (!selectedArea) {
+      // نعطيه ثانية يشوف الصفحة قبل ما نبعتو للخريطة
+      const t = setTimeout(() => navigate("/map"), 600);
+      return () => clearTimeout(t);
+    }
+  }, [selectedArea]);
 
   useEffect(() => {
     const el = document.documentElement;

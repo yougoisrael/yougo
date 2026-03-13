@@ -122,24 +122,39 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, cartCount = 0, user, onNeedLog
   }
 
   return (
+    <>
+    {/* ── Backdrop ── */}
     <div style={{
-      position: "fixed", inset: 0, display: "flex", flexDirection: "column",
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
+      backdropFilter: "blur(4px)", zIndex: 500,
+    }} onClick={() => {/* don't close — must pick zone */}}/>
+
+    {/* ── Bottom Sheet Modal ── */}
+    <div style={{
+      position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+      width: "100%", maxWidth: 430,
+      maxHeight: "88vh", overflowY: "auto",
+      display: "flex", flexDirection: "column",
       fontFamily: "system-ui,Arial,sans-serif", direction: "rtl",
-      background: BG, maxWidth: 430, margin: "0 auto", zIndex: 300,
+      background: BG, zIndex: 501,
+      borderRadius: "24px 24px 0 0",
+      boxShadow: "0 -8px 40px rgba(0,0,0,0.25)",
+      animation: "zoneUp .35s cubic-bezier(.34,1.1,.64,1)",
     }}>
+    <style>{`@keyframes zoneUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}`}</style>
       <style>{CSS}</style>
 
-      {/* Hero header */}
-      <div style={{
-        background: `linear-gradient(158deg,${RED} 0%,#6B0716 100%)`,
-        padding: "36px 22px 28px", position: "relative", overflow: "hidden", flexShrink: 0,
-      }}>
-        <div style={{ position:"absolute",width:240,height:240,borderRadius:"50%",border:"1px solid rgba(255,255,255,.06)",top:-100,right:-80,pointerEvents:"none" }}/>
-        <div style={{ position:"absolute",width:160,height:160,borderRadius:"50%",border:"1px solid rgba(255,255,255,.05)",bottom:-60,left:-50,pointerEvents:"none" }}/>
-        <div style={{ fontSize: 40, marginBottom: 10, lineHeight: 1, position: "relative" }}>🗺️</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: "white", position: "relative" }}>בחר את האזור שלך</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,.65)", marginTop: 6, lineHeight: 1.55, position: "relative" }}>
-          כדי להציג לך מסעדות ומשלוחים בסביבתך
+      {/* Drag handle + compact header */}
+      <div style={{ padding: "12px 20px 16px", flexShrink: 0, borderBottom: "1px solid #F0F0F0" }}>
+        <div style={{ display:"flex",justifyContent:"center",marginBottom:12 }}>
+          <div style={{ width:38,height:4,borderRadius:2,background:"#D1D5DB" }}/>
+        </div>
+        <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+          <span style={{ fontSize:28 }}>🗺️</span>
+          <div>
+            <div style={{ fontSize:17,fontWeight:900,color:DARK }}>בחר את האזור שלך</div>
+            <div style={{ fontSize:12,color:GRAY,marginTop:2 }}>כדי להציג לך מסעדות ומשלוחים בסביבתך</div>
+          </div>
         </div>
       </div>
 
@@ -300,14 +315,10 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, cartCount = 0, user, onNeedLog
         )}
 
         {/* spacer */}
-        <div style={{ height: 20 }}/>
-      </div>
-
-      {/* BottomNav — fixed at bottom */}
-      <div style={{ position:"absolute",bottom:0,left:0,right:0,zIndex:10,background:"white",borderTop:"1px solid #F0F0F0" }}>
-        <BottomNav cartCount={cartCount}/>
+        <div style={{ height: 24 }}/>
       </div>
     </div>
+    </>
   );
 }
 

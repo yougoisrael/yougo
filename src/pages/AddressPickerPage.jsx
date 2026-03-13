@@ -379,11 +379,11 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
       /* Outer dark overlay (locked feel) */
       const circle = L.circle([zone.lat, zone.lng], {
         radius: zone.radius,
-        color: RED,
-        weight: 2.5,
-        opacity: 0.5,
-        fillColor: "#111827",
-        fillOpacity: 0.22,
+        color: "#555",
+        weight: 1.5,
+        opacity: 0.7,
+        fillColor: "#222",
+        fillOpacity: 0.35,
         dashArray: "8,5",
         interactive: true,
         className: "yg-zc",
@@ -396,26 +396,28 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
           pointer-events:none;
         ">
           <div class="yz-bubble-${zone.id}" style="
-            background:rgba(17,24,39,.75);
-            backdrop-filter:blur(4px);
+            background:rgba(20,20,30,.82);
+            backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
             color:white;font-family:system-ui,Arial,sans-serif;
             font-size:10px;font-weight:800;
-            padding:5px 12px;border-radius:20px;
-            box-shadow:0 3px 12px rgba(0,0,0,.3);
-            border:1.5px solid rgba(255,255,255,.15);
-            display:flex;align-items:center;gap:5px;
+            padding:6px 13px 6px 10px;border-radius:22px;
+            box-shadow:0 4px 16px rgba(0,0,0,.4);
+            border:1.5px solid rgba(255,255,255,.12);
+            display:flex;align-items:center;gap:6px;
             white-space:nowrap;
-            transition:all .25s cubic-bezier(.34,1.3,.64,1);
+            transition:all .28s cubic-bezier(.34,1.3,.64,1);
           ">
-            <span style="font-size:14px">${zone.emoji}</span>
-            <span class="yz-label-${zone.id}">${zone.short.split("·")[0].trim()}</span>
-            <span style="font-size:9px;opacity:.6">🔒</span>
+            <svg class="yz-icon-${zone.id}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2.5" stroke-linecap="round" style="transition:all .25s;flex-shrink:0">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span class="yz-label-${zone.id}" style="letter-spacing:.3px">${zone.short.split("·")[0].trim()}</span>
           </div>
           <div class="yz-tail-${zone.id}" style="
             width:0;height:0;
             border-left:5px solid transparent;border-right:5px solid transparent;
-            border-top:8px solid rgba(17,24,39,.75);margin-top:-1px;
-            transition:border-top-color .25s;
+            border-top:8px solid rgba(20,20,30,.82);margin-top:-1px;
+            transition:border-top-color .28s;
           "></div>
         </div>`,
         className: "",
@@ -508,24 +510,34 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
         fillColor: RED, fillOpacity: 0.12,
         color: RED, weight: 3, opacity: 0.9, dashArray: "",
       } : {
-        fillColor: "#111827", fillOpacity: 0.22,
-        color: RED, weight: 2.5, opacity: 0.5, dashArray: "8,5",
+        fillColor: "#222", fillOpacity: 0.35,
+        color: "#555", weight: 1.5, opacity: 0.7, dashArray: "8,5",
       });
 
       /* Update label bubble */
       const bubble = document.querySelector(`.yz-bubble-${z.id}`);
       const tail   = document.querySelector(`.yz-tail-${z.id}`);
-      const label  = document.querySelector(`.yz-label-${z.id}`);
-      const lock   = bubble?.querySelector("span:last-child");
+      const icon   = document.querySelector(`.yz-icon-${z.id}`);
 
       if (bubble) {
-        bubble.style.background   = isActive ? RED : "rgba(17,24,39,.75)";
-        bubble.style.border       = isActive ? `1.5px solid rgba(255,255,255,.3)` : "1.5px solid rgba(255,255,255,.15)";
-        bubble.style.boxShadow    = isActive ? `0 4px 18px rgba(200,16,46,.45)` : "0 3px 12px rgba(0,0,0,.3)";
-        bubble.style.transform    = isActive ? "scale(1.12)" : "scale(1)";
-        if (lock) lock.textContent = isActive ? "✓" : "🔒";
+        bubble.style.background      = isActive ? RED : "rgba(20,20,30,.82)";
+        bubble.style.border          = isActive ? "1.5px solid rgba(255,255,255,.3)" : "1.5px solid rgba(255,255,255,.12)";
+        bubble.style.boxShadow       = isActive ? `0 6px 22px rgba(200,16,46,.55)` : "0 4px 16px rgba(0,0,0,.4)";
+        bubble.style.transform       = isActive ? "scale(1.1)" : "scale(1)";
+        bubble.style.backdropFilter  = "blur(6px)";
       }
-      if (tail) tail.style.borderTopColor = isActive ? RED : "rgba(17,24,39,.75)";
+      if (icon) {
+        if (isActive) {
+          // checkmark when unlocked
+          icon.setAttribute("viewBox","0 0 24 24");
+          icon.setAttribute("stroke","white");
+          icon.innerHTML = '<polyline points="20 6 9 17 4 12" stroke-linecap="round" stroke-linejoin="round"/>';
+        } else {
+          icon.setAttribute("stroke","rgba(255,255,255,.5)");
+          icon.innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+        }
+      }
+      if (tail) tail.style.borderTopColor = isActive ? RED : "rgba(20,20,30,.82)";
     });
   }
 
@@ -629,7 +641,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
     <div style={{
       position:"fixed",inset:0,display:"flex",flexDirection:"column",
       fontFamily:"system-ui,Arial,sans-serif",direction:"rtl",
-      background:"#ede8df",maxWidth:430,margin:"0 auto",zIndex:300,
+      background:"#ede8df",zIndex:300,
     }}>
       <style>{CSS}</style>
       <style>{`
@@ -642,7 +654,8 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
       <div style={{
         flexShrink:0,background:"white",
         padding:"10px 16px",borderBottom:"1px solid #F0F0F0",
-        display:"flex",alignItems:"center",gap:12,zIndex:20,
+        display:"flex",alignItems:"center",gap:12,zIndex:1001,
+        position:"relative",
       }}>
         <button onClick={onBack} style={{
           width:38,height:38,borderRadius:12,background:"#F3F4F6",
@@ -670,8 +683,8 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
       </div>
 
       {/* ── Map area ── */}
-      <div style={{ flex:1,position:"relative",overflow:"hidden" }}>
-        <div ref={mapEl} style={{ position:"absolute",inset:0 }}/>
+      <div style={{ flex:1,position:"relative",overflow:"hidden",minHeight:0 }}>
+        <div ref={mapEl} style={{ position:"absolute",top:0,left:0,right:0,bottom:0,zIndex:1 }}/>
 
         {/* Loading overlay */}
         {!ready && (
@@ -696,7 +709,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
             top:`calc(50% - ${SHEET_H/2}px)`,
             left:"50%",
             transform:"translate(-50%,-100%)",
-            zIndex:15,pointerEvents:"none",
+            zIndex:500,pointerEvents:"none",
             transition:"top .3s ease",
           }}>
             {/* Pin shadow on map */}
@@ -728,7 +741,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
             top:`calc(50% - ${SHEET_H/2}px - 64px)`,
             left:"50%",
             transform:"translateX(-50%)",
-            zIndex:16,pointerEvents:"none",
+            zIndex:500,pointerEvents:"none",
             transition:"top .3s ease, opacity .2s",
             opacity: selected ? 1 : 0,
           }}>
@@ -763,7 +776,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
         {/* Out-of-zone soft error banner */}
         {outOfZone && ready && (
           <div style={{
-            position:"absolute",bottom:SHEET_H+12,left:16,right:16,zIndex:16,
+            position:"absolute",bottom:SHEET_H+12,left:16,right:16,zIndex:500,
             background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:16,
             padding:"12px 16px",
             display:"flex",alignItems:"center",gap:10,
@@ -780,7 +793,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
 
         {/* ── GPS FAB ── */}
         <button onClick={goMyLoc} style={{
-          position:"absolute",right:14,bottom:SHEET_H+16,zIndex:10,
+          position:"absolute",right:14,bottom:SHEET_H+16,zIndex:500,
           width:44,height:44,background:"white",border:"none",borderRadius:"50%",
           cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
           boxShadow:"0 4px 16px rgba(0,0,0,.18)",transition:"bottom .3s ease",
@@ -798,7 +811,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
 
         {/* ── Zoom buttons ── */}
         <div style={{
-          position:"absolute",left:14,bottom:SHEET_H+16,zIndex:10,
+          position:"absolute",left:14,bottom:SHEET_H+16,zIndex:500,
           display:"flex",flexDirection:"column",gap:6,
           transition:"bottom .3s ease",
         }}>

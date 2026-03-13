@@ -391,19 +391,10 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
             </svg>
           </div>
           <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:9px solid ${RED};margin-top:-2px;opacity:.8"/>
-          <div id="ypl-${zone.id}" style="
-            margin-top:4px;
-            background:rgba(17,24,39,.82);color:white;
-            font-size:10px;font-weight:800;padding:3px 10px;border-radius:10px;
-            white-space:nowrap;backdrop-filter:blur(4px);
-            box-shadow:0 2px 8px rgba(0,0,0,.25);
-            transition:all .22s ease;font-family:system-ui,Arial,sans-serif;
-            letter-spacing:.3px;
-          ">${zone.short.split("·")[0].trim()}</div>
         </div>`,
         className: "",
-        iconSize: [46, 80],
-        iconAnchor: [23, 55],
+        iconSize: [46, 40],
+        iconAnchor: [23, 40],
       });
 
       const marker = L.marker([zone.lat, zone.lng], { icon, zIndexOffset: 100 }).addTo(map);
@@ -432,15 +423,13 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
 
     setReady(true);
 
-    /* GPS on load */
+    /* GPS on load — place "אני כאן" marker only, keep overview zoom */
     navigator.geolocation?.getCurrentPosition(
       ({ coords: { latitude: la, longitude: lo } }) => {
         placeMyLoc(la, lo, L, map);
         setMyLoc({ la, lo });
         setGpsErr(false);
-        map.flyTo([la, lo], 16, { animate: true, duration: 0.8 });
-        const zone = nearestZone(la, lo);
-        setTimeout(() => selectZone(zone, map, L), 1000);
+        /* Do NOT flyTo — user sees all 3 zones first */
       },
       () => setGpsErr(true),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -486,10 +475,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
     ball.style.transform   = active ? "scale(1.3)" : "scale(1)";
     ball.style.boxShadow   = active ? "0 5px 20px rgba(200,16,46,.55)" : "0 3px 14px rgba(200,16,46,.35)";
     svg?.querySelector("path")?.setAttribute("fill", active ? "white" : RED);
-    if (lbl) {
-      lbl.style.background = active ? RED : "rgba(17,24,39,.82)";
-      lbl.style.transform  = active ? "scale(1.05)" : "scale(1)";
-    }
+    /* no label div */
   }
 
   function placeMyLoc(la, lo, L, map) {
@@ -519,13 +505,14 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
     navigator.geolocation?.getCurrentPosition(
       ({ coords: { latitude: la, longitude: lo } }) => {
         if (window.L && mapRef.current) placeMyLoc(la, lo, window.L, mapRef.current);
-        mapRef.current?.flyTo([la, lo], 16, { animate: true, duration: 0.6 });
         setMyLoc({ la, lo });
+        setGpsErr(false);
+        mapRef.current?.flyTo([la, lo], 16, { animate: true, duration: 0.7 });
         const zone = nearestZone(la, lo);
-        setTimeout(() => selectZone(zone, mapRef.current, window.L), 800);
+        setTimeout(() => selectZone(zone, mapRef.current, window.L), 900);
       },
       () => setGpsErr(true),
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }
 

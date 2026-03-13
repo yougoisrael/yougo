@@ -287,3 +287,5 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
     </div>
     <style>{CSS}</style>
   </div>);
+
+}

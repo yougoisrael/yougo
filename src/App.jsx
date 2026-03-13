@@ -201,6 +201,7 @@ export default function App() {
       <Route path="/support"  element={<SupportPage user={user}/>}/>
       <Route path="/address"  element={
         <AddressPickerPage
+          cartCount={cartCount}
           initialZone={selectedArea}
           onAddressSave={(a) => {
             const area = a.zone || a;

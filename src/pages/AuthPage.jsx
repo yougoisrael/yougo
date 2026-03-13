@@ -6,7 +6,9 @@
 //  4. Google OAuth
 //  Register: email, name, phone, gender, age, password
 // ═══════════════════════════════════════════════════════════
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY;
 import { supabase } from "../lib/supabase";
 import { C, IcoCheck, IcoBack, IcoFork, IcoStore, IcoTruck, IcoBusiness } from "../components/Icons";
 
@@ -60,6 +62,32 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
   const [rBusy,setRBusy]=useState(false);
   const [sp,setSp]=useState(false);
   const [sp2,setSp2]=useState(false);
+  const hcapWidgetId=useRef(null);
+
+  useEffect(()=>{
+    if(!HCAPTCHA_SITE_KEY)return;
+    function renderWidget(){
+      const el=document.getElementById("h-captcha-container");
+      if(el&&window.hcaptcha&&hcapWidgetId.current===null){
+        hcapWidgetId.current=window.hcaptcha.render(el,{sitekey:HCAPTCHA_SITE_KEY,size:"invisible"});
+      }
+    }
+    if(window.hcaptcha){renderWidget();return;}
+    window._hcapLoad=()=>renderWidget();
+    const s=document.createElement("script");
+    s.src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=_hcapLoad";
+    s.async=true;
+    document.head.appendChild(s);
+  },[]);
+
+  async function getCaptchaToken(){
+    if(!HCAPTCHA_SITE_KEY||hcapWidgetId.current===null)return undefined;
+    try{
+      const{response}=await window.hcaptcha.execute(hcapWidgetId.current,{async:true});
+      window.hcaptcha.reset(hcapWidgetId.current);
+      return response;
+    }catch{return undefined;}
+  }
 
   useEffect(()=>{if(screen!=="splash")return;const t=setTimeout(()=>setScreen("main"),2400);return()=>clearTimeout(t);},[screen]);
   useEffect(()=>{if(screen!=="otp-code")return;setTimer(60);setCanR(false);const t=setInterval(()=>setTimer(p=>{if(p<=1){clearInterval(t);setCanR(true);return 0;}return p-1;}),1000);return()=>clearInterval(t);},[screen]);
@@ -94,7 +122,8 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
     if(!isEmail(e)){setLErr("הזן אימייל תקין");return;}
     if(!passIn){setLErr("הזן סיסמה");return;}
     setLBusy(true);
-    const{data,error}=await supabase.auth.signInWithPassword({email:e,password:passIn});
+    const captchaToken=await getCaptchaToken();
+    const{data,error}=await supabase.auth.signInWithPassword({email:e,password:passIn,...(captchaToken&&{options:{captchaToken}})});
     setLBusy(false);
     if(error){setLErr("אימייל או סיסמה שגויים");return;}
     const m=data.user?.user_metadata||{};
@@ -114,7 +143,8 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
       if(data?.email){found=data.email;break;}
     }
     if(!found){setLBusy(false);setLErr("מספר הטלפון לא נמצא — נסה עם אימייל");return;}
-    const{data,error}=await supabase.auth.signInWithPassword({email:found,password:passIn});
+    const captchaToken=await getCaptchaToken();
+    const{data,error}=await supabase.auth.signInWithPassword({email:found,password:passIn,...(captchaToken&&{options:{captchaToken}})});
     setLBusy(false);
     if(error){setLErr("סיסמה שגויה");return;}
     const m=data.user?.user_metadata||{};
@@ -126,7 +156,8 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
     const e=emailIn.trim().toLowerCase();
     if(!isEmail(e)){setLErr("הזן אימייל תקין");return;}
     setLBusy(true);
-    const{error}=await supabase.auth.signInWithOtp({email:e,options:{shouldCreateUser:true}});
+    const captchaToken=await getCaptchaToken();
+    const{error}=await supabase.auth.signInWithOtp({email:e,options:{shouldCreateUser:true,...(captchaToken&&{captchaToken})}});
     setLBusy(false);
     if(error){setLErr(error.status===429||error.message?.includes("rate")?"יותר מדי בקשות — המתן דקה":"שגיאה: "+(error.message||"נסה שוב"));return;}
     setScreen("otp-code");
@@ -179,7 +210,8 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
       setTimeout(()=>done(session.user,{...session.user.user_metadata,...meta}),1600);
       return;
     }
-    const{data,error}=await supabase.auth.signUp({email:eFin,password:reg.pass,options:{data:meta,emailRedirectTo:window.location.href}});
+    const captchaToken=await getCaptchaToken();
+    const{data,error}=await supabase.auth.signUp({email:eFin,password:reg.pass,options:{data:meta,emailRedirectTo:window.location.href,...(captchaToken&&{captchaToken})}});
     if(error){const m2=error.message?.toLowerCase();setRErrs({general:m2?.includes("already")||m2?.includes("registered")?"האימייל כבר רשום — נסה להתחבר":"שגיאה: "+(error.message||"נסה שוב")});setRBusy(false);return;}
     if(data.user)await supabase.from("users").upsert({id:data.user.id,name:meta.firstName+" "+meta.lastName,phone:meta.phone,email:eFin});
     setRBusy(false);setScreen("success");
@@ -249,5 +281,5 @@ export default function AuthPage({onDone,onGuest,onBusiness}){
       <div style={{textAlign:"center",color:"#9CA3AF",fontSize:10,marginTop:16,lineHeight:1.7}}>בהמשך אתה מסכים ל<span style={{color:C.red,fontWeight:700}}>תנאי השימוש</span> ול<span style={{color:C.red,fontWeight:700}}>מדיניות הפרטיות</span></div>
     </div>
     <style>{CSS}</style>
+    <div id="h-captcha-container" style={{display:"none"}}></div>
   </div>);
-}

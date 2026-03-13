@@ -203,7 +203,9 @@ export default function App() {
         <AddressPickerPage
           initialZone={selectedArea}
           onAddressSave={(a) => {
-            handleAreaSelect(a.zone || selectedArea);
+            const area = a.zone || a;
+            const norm = { id:area?.id||selectedArea?.id, short:area?.short||area?.nameHe||selectedArea?.short||"", name:area?.name||area?.nameHe||selectedArea?.name||"", lat:area?.lat||selectedArea?.lat, lng:area?.lng||selectedArea?.lng, radius:area?.radius||selectedArea?.radius };
+            handleAreaSelect(norm);
             try { localStorage.setItem("yougo_address", JSON.stringify(a)); } catch {}
           }}
         />

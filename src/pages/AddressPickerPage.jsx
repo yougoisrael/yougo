@@ -283,28 +283,53 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, cartCount = 0 }) {
 }
 
 /* ══════════════════════════════════════════════
-   MAP PICKER  (Step 1) — smooth Leaflet + circles + אני כאן
+/* ══════════════════════════════════════════════
+   MAP PICKER  — Wolt-style
+   • Fixed red pin at center (always visible)
+   • Map moves underneath it
+   • Zone circles locked → tap to unlock + highlight
+   • אני כאן fixed bubble (live GPS position)
+   • Smooth reverse geocode on drag end
+   • Bottom sheet with full address form
 ══════════════════════════════════════════════ */
 function MapPicker({ onBack, onSaved, cartCount = 0 }) {
   const mapEl    = useRef(null);
-  const mapInst  = useRef(null);
-  const circles  = useRef({});   // zone circles
-  const userMark = useRef(null);
+  const mapRef   = useRef(null);
+  const circleRefs = useRef({});
+  const markerRefs = useRef({});
+  const userMarkRef = useRef(null);
   const initDone = useRef(false);
-  const pinLat   = useRef(32.935);
-  const pinLng   = useRef(35.340);
+  const geoTimer = useRef(null);
 
-  const [ready,    setReady]    = useState(false);
-  const [selected, setSelected] = useState(null);
-  const [dragging, setDragging] = useState(false);
-  const [addrTxt,  setAddrTxt]  = useState("גרור למיקום המדויק...");
-  const [addrBusy, setAddrBusy] = useState(false);
-  const [label,    setLabel]    = useState("");
-  const [locType,  setLocType]  = useState("בית");
-  const [saving,   setSaving]   = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [ready,     setReady]     = useState(false);
+  const [selected,  setSelected]  = useState(null);   // active zone
+  const [dragging,  setDragging]  = useState(false);
+  const [pinPos,    setPinPos]    = useState({ lat: 32.945, lng: 35.325 });
+  const [addrTxt,   setAddrTxt]   = useState("");
+  const [addrBusy,  setAddrBusy]  = useState(false);
+  const [outOfZone, setOutOfZone] = useState(false);  // soft error
+  const [showForm,  setShowForm]  = useState(false);
+  const [label,     setLabel]     = useState("");
+  const [locType,   setLocType]   = useState("בית");
+  const [saving,    setSaving]    = useState(false);
+  const [myLocLat,  setMyLocLat]  = useState(null);
+  const [myLocLng,  setMyLocLng]  = useState(null);
 
-  /* ── Load Leaflet CDN ── */
+  /* ── Nearest zone to a point ── */
+  function nearZone(la, lo) {
+    let best = null, bestD = Infinity;
+    ZONES.forEach(z => {
+      const d = haversine(la, lo, z.lat, z.lng);
+      if (d < bestD) { bestD = d; best = z; }
+    });
+    return { zone: best, dist: bestD };
+  }
+
+  function isInAnyZone(la, lo) {
+    return ZONES.some(z => haversine(la, lo, z.lat, z.lng) <= z.radius * 1.05);
+  }
+
+  /* ── Load Leaflet ── */
   useEffect(() => {
     if (window.L) { initMap(); return; }
     if (!document.querySelector('link[href*="leaflet"]')) {
@@ -323,218 +348,274 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
       onload: () => initMap(),
     });
     document.head.appendChild(s);
-    return () => { if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; } initDone.current = false; };
+    return () => {
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      initDone.current = false;
+    };
   }, []);
 
-  /* ── Init map ── */
   function initMap() {
     if (initDone.current || !mapEl.current) return;
     initDone.current = true;
     const L = window.L;
 
     const map = L.map(mapEl.current, {
-      center: [32.945, 35.325],
-      zoom: 11,
-      zoomControl: false,
-      attributionControl: false,
-      minZoom: 10,
-      maxZoom: 15,
-      maxBounds: [[32.50, 34.80], [33.50, 35.90]],
-      maxBoundsViscosity: 0.85,
+      center: [32.945, 35.325], zoom: 12,
+      zoomControl: false, attributionControl: false,
+      minZoom: 10, maxZoom: 17,
       preferCanvas: true,
-      fadeAnimation: true,
-      zoomAnimation: true,
+      fadeAnimation: true, zoomAnimation: true,
+      tap: true, touchZoom: true,
     });
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19, updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 6,
+      maxZoom: 19, updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 8,
     }).addTo(map);
 
-    mapInst.current = map;
+    mapRef.current = map;
 
-    /* ── Draw zone circles with pins ── */
+    /* Draw locked zone overlays */
     ZONES.forEach(zone => {
-      // Circle
+      /* Outer dark overlay (locked feel) */
       const circle = L.circle([zone.lat, zone.lng], {
         radius: zone.radius,
-        color: RED, weight: 2, opacity: 0.6,
-        fillColor: RED, fillOpacity: 0.08,
-        dashArray: "6,4",
+        color: RED,
+        weight: 2.5,
+        opacity: 0.5,
+        fillColor: "#111827",
+        fillOpacity: 0.22,
+        dashArray: "8,5",
         interactive: true,
-        className: "yg-zone-circle",
+        className: "yg-zc",
       }).addTo(map);
 
-      // Pin marker
+      /* Zone label marker */
       const icon = L.divIcon({
-        html: `
-          <div id="mp-pin-${zone.id}" style="display:flex;flex-direction:column;align-items:center;cursor:pointer;animation:pinPop .3s ease">
-            <div class="mp-circle-${zone.id}" style="
-              width:42px;height:42px;border-radius:50%;
-              background:white;border:2.5px solid ${RED};
-              display:flex;align-items:center;justify-content:center;
-              box-shadow:0 2px 10px rgba(200,16,46,.25);
-              transition:all .2s cubic-bezier(.34,1.3,.64,1);
-              font-size:18px;
-            ">${zone.emoji}</div>
-            <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:9px solid ${RED};margin-top:-1px;opacity:.7"/>
-            <div class="mp-label-${zone.id}" style="
-              margin-top:2px;background:white;color:${DARK};
-              font-size:9px;font-weight:700;padding:2px 8px;border-radius:7px;
-              white-space:nowrap;border:1.5px solid ${RED};
-              box-shadow:0 1px 5px rgba(0,0,0,.1);
-              transition:all .2s;font-family:system-ui,Arial,sans-serif;
-            ">${zone.short.split("·")[0].trim()}</div>
-          </div>`,
+        html: `<div id="yz-${zone.id}" style="
+          display:flex;flex-direction:column;align-items:center;
+          pointer-events:none;
+        ">
+          <div class="yz-bubble-${zone.id}" style="
+            background:rgba(17,24,39,.75);
+            backdrop-filter:blur(4px);
+            color:white;font-family:system-ui,Arial,sans-serif;
+            font-size:10px;font-weight:800;
+            padding:5px 12px;border-radius:20px;
+            box-shadow:0 3px 12px rgba(0,0,0,.3);
+            border:1.5px solid rgba(255,255,255,.15);
+            display:flex;align-items:center;gap:5px;
+            white-space:nowrap;
+            transition:all .25s cubic-bezier(.34,1.3,.64,1);
+          ">
+            <span style="font-size:14px">${zone.emoji}</span>
+            <span class="yz-label-${zone.id}">${zone.short.split("·")[0].trim()}</span>
+            <span style="font-size:9px;opacity:.6">🔒</span>
+          </div>
+          <div class="yz-tail-${zone.id}" style="
+            width:0;height:0;
+            border-left:5px solid transparent;border-right:5px solid transparent;
+            border-top:8px solid rgba(17,24,39,.75);margin-top:-1px;
+            transition:border-top-color .25s;
+          "></div>
+        </div>`,
         className: "",
-        iconSize: [42, 70],
-        iconAnchor: [21, 51],
+        iconSize: [130, 38],
+        iconAnchor: [65, 38],
       });
 
-      const marker = L.marker([zone.lat, zone.lng], { icon }).addTo(map);
+      const marker = L.marker([zone.lat, zone.lng], { icon, interactive: true }).addTo(map);
 
-      // Click handler on both circle and marker
-      const onClick = (e) => {
-        L.DomEvent.stopPropagation(e);
-        selectZone(zone, map, L);
+      const doSelect = (e) => {
+        if (e?.originalEvent) L.DomEvent.stopPropagation(e);
+        activateZone(zone, map, L);
       };
-      circle.on("click", onClick);
-      marker.on("click", onClick);
+      circle.on("click", doSelect);
+      marker.on("click", doSelect);
 
-      circles.current[zone.id] = { circle, marker };
+      circleRefs.current[zone.id] = circle;
+      markerRefs.current[zone.id] = marker;
     });
 
-    /* ── Map events ── */
-    map.on("click", () => {
-      resetZones();
-      setSelected(null);
-      setShowForm(false);
+    /* Map drag events — update pin center */
+    map.on("movestart", () => {
+      setDragging(true);
+      setOutOfZone(false);
     });
 
-    map.on("movestart", () => setDragging(true));
+    map.on("move", () => {
+      const c = map.getCenter();
+      setPinPos({ lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6) });
+    });
+
     map.on("moveend", () => {
       setDragging(false);
       const c = map.getCenter();
-      pinLat.current = +c.lat.toFixed(7);
-      pinLng.current = +c.lng.toFixed(7);
+      const la = +c.lat.toFixed(6), lo = +c.lng.toFixed(6);
+      setPinPos({ lat: la, lng: lo });
+
+      /* Check if inside active zone */
+      if (!isInAnyZone(la, lo)) {
+        setOutOfZone(true);
+        setAddrTxt("");
+        return;
+      }
+      setOutOfZone(false);
+      /* Auto-activate nearest zone */
+      const { zone } = nearZone(la, lo);
+      setSelected(zone);
+      activateZoneStyle(zone.id);
+
+      /* Reverse geocode with debounce */
+      clearTimeout(geoTimer.current);
+      geoTimer.current = setTimeout(() => reverseGeo(la, lo), 600);
     });
 
     setReady(true);
 
-    /* ── GPS on load ── */
+    /* GPS on load */
     navigator.geolocation?.getCurrentPosition(
       ({ coords: { latitude: la, longitude: lo } }) => {
-        placeUserMarker(la, lo, L, map);
-        pinLat.current = la;
-        pinLng.current = lo;
+        placeMyLoc(la, lo, L, map);
+        setMyLocLat(la); setMyLocLng(lo);
+        map.flyTo([la, lo], 14, { animate: true, duration: 0.8 });
+        const { zone } = nearZone(la, lo);
+        if (zone) {
+          setSelected(zone);
+          activateZoneStyle(zone.id);
+          reverseGeo(la, lo);
+        }
       },
       () => {}
     );
   }
 
-  function selectZone(zone, map, L) {
-    resetZones();
-
-    // Highlight selected circle
-    const { circle, marker } = circles.current[zone.id] || {};
-    circle?.setStyle({ fillOpacity: 0.22, weight: 3, opacity: 1, dashArray: "" });
-
-    // Animate pin
-    const pinEl = document.getElementById(`mp-pin-${zone.id}`);
-    if (pinEl) {
-      const circleEl = pinEl.querySelector(`.mp-circle-${zone.id}`);
-      const labelEl  = pinEl.querySelector(`.mp-label-${zone.id}`);
-      if (circleEl) {
-        circleEl.style.background   = RED;
-        circleEl.style.transform    = "scale(1.3)";
-        circleEl.style.boxShadow    = "0 4px 18px rgba(200,16,46,.5)";
-        circleEl.style.color        = "white";
-      }
-      if (labelEl) {
-        labelEl.style.background   = RED;
-        labelEl.style.color        = "white";
-        labelEl.style.fontWeight   = "900";
-      }
-    }
-
-    // Pan map — offset so zone is above bottom sheet
-    const mapH  = map.getSize().y;
-    const sheetH = 160;
-    const pt    = map.latLngToContainerPoint([zone.lat, zone.lng]);
-    const newPt = window.L.point(pt.x, pt.y + sheetH / 2);
-    map.panTo(map.containerPointToLatLng(newPt), { animate: true, duration: 0.3, easeLinearity: 0.9 });
-
-    pinLat.current = zone.lat;
-    pinLng.current = zone.lng;
-
+  /* Activate zone — visual only (no flyTo = smoother) */
+  function activateZone(zone, map, L) {
+    /* Fly to zone center */
+    map.flyTo([zone.lat, zone.lng], 14, { animate: true, duration: 0.45, easeLinearity: 0.9 });
     setSelected(zone);
-    setShowForm(false);
+    activateZoneStyle(zone.id);
     reverseGeo(zone.lat, zone.lng);
+    setOutOfZone(false);
   }
 
-  function resetZones() {
-    Object.entries(circles.current).forEach(([id, { circle }]) => {
-      circle.setStyle({ fillOpacity: 0.08, weight: 2, opacity: 0.6, dashArray: "6,4" });
-      const pinEl = document.getElementById(`mp-pin-${id}`);
-      const zone  = ZONES.find(z => z.id === id);
-      if (pinEl && zone) {
-        const circleEl = pinEl.querySelector(`.mp-circle-${id}`);
-        const labelEl  = pinEl.querySelector(`.mp-label-${id}`);
-        if (circleEl) { circleEl.style.background = "white"; circleEl.style.transform = "scale(1)"; circleEl.style.boxShadow = "0 2px 10px rgba(200,16,46,.25)"; circleEl.style.color = "initial"; }
-        if (labelEl)  { labelEl.style.background = "white"; labelEl.style.color = DARK; labelEl.style.fontWeight = "700"; }
+  function activateZoneStyle(activeId) {
+    ZONES.forEach(z => {
+      const circle = circleRefs.current[z.id];
+      const isActive = z.id === activeId;
+
+      circle?.setStyle(isActive ? {
+        fillColor: RED, fillOpacity: 0.12,
+        color: RED, weight: 3, opacity: 0.9, dashArray: "",
+      } : {
+        fillColor: "#111827", fillOpacity: 0.22,
+        color: RED, weight: 2.5, opacity: 0.5, dashArray: "8,5",
+      });
+
+      /* Update label bubble */
+      const bubble = document.querySelector(`.yz-bubble-${z.id}`);
+      const tail   = document.querySelector(`.yz-tail-${z.id}`);
+      const label  = document.querySelector(`.yz-label-${z.id}`);
+      const lock   = bubble?.querySelector("span:last-child");
+
+      if (bubble) {
+        bubble.style.background   = isActive ? RED : "rgba(17,24,39,.75)";
+        bubble.style.border       = isActive ? `1.5px solid rgba(255,255,255,.3)` : "1.5px solid rgba(255,255,255,.15)";
+        bubble.style.boxShadow    = isActive ? `0 4px 18px rgba(200,16,46,.45)` : "0 3px 12px rgba(0,0,0,.3)";
+        bubble.style.transform    = isActive ? "scale(1.12)" : "scale(1)";
+        if (lock) lock.textContent = isActive ? "✓" : "🔒";
       }
+      if (tail) tail.style.borderTopColor = isActive ? RED : "rgba(17,24,39,.75)";
     });
   }
 
-  function placeUserMarker(la, lo, L, map) {
-    userMark.current?.remove();
+  /* Place "אני כאן" blue dot (GPS) */
+  function placeMyLoc(la, lo, L, map) {
+    userMarkRef.current?.remove();
     const icon = L.divIcon({
       className: "",
-      html: `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
-        <div style="background:${RED};color:white;font-family:system-ui,Arial,sans-serif;font-size:11px;font-weight:800;padding:5px 12px;border-radius:22px;box-shadow:0 3px 14px rgba(200,16,46,.45);border:2px solid rgba(255,255,255,.55);display:flex;align-items:center;gap:5px;white-space:nowrap;animation:addrPop .4s cubic-bezier(.34,1.5,.64,1) both">
-          <span style="font-size:14px">🧭</span>אני כאן
-        </div>
-        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid ${RED};margin-top:-1px"></div>
-        <div style="position:relative;width:14px;height:14px;border-radius:50%;background:#3B82F6;border:2.5px solid white;box-shadow:0 2px 8px rgba(59,130,246,.55);margin-top:2px">
-          <div style="position:absolute;inset:-5px;border-radius:50%;background:rgba(59,130,246,.18);animation:addrPulse 2s ease-out infinite"></div>
+      html: `<div style="
+        display:flex;flex-direction:column;align-items:center;
+        pointer-events:none;animation:addrPop .4s cubic-bezier(.34,1.5,.64,1) both;
+      ">
+        <div style="
+          background:${RED};color:white;
+          font-family:system-ui,Arial,sans-serif;
+          font-size:11px;font-weight:800;
+          padding:5px 13px;border-radius:22px;
+          box-shadow:0 3px 14px rgba(200,16,46,.45);
+          border:2px solid rgba(255,255,255,.55);
+          display:flex;align-items:center;gap:5px;white-space:nowrap;
+        "><span style="font-size:13px">🧭</span>אני כאן</div>
+        <div style="
+          width:0;height:0;
+          border-left:6px solid transparent;border-right:6px solid transparent;
+          border-top:9px solid ${RED};margin-top:-1px;
+        "></div>
+        <div style="
+          position:relative;width:14px;height:14px;border-radius:50%;
+          background:#3B82F6;border:2.5px solid white;
+          box-shadow:0 2px 8px rgba(59,130,246,.55);margin-top:2px;
+        ">
+          <div style="
+            position:absolute;inset:-6px;border-radius:50%;
+            background:rgba(59,130,246,.18);
+            animation:addrPulse 2s ease-out infinite;
+          "></div>
         </div>
       </div>`,
-      iconSize: [100, 68], iconAnchor: [50, 68],
+      iconSize: [100, 68],
+      iconAnchor: [50, 68],
     });
-    userMark.current = window.L.marker([la, lo], { icon, zIndexOffset: 700, interactive: false }).addTo(map);
+    userMarkRef.current = window.L?.marker([la, lo], {
+      icon, zIndexOffset: 800, interactive: false,
+    }).addTo(map);
+  }
+
+  function goMyLoc() {
+    if (!mapRef.current) return;
+    if (myLocLat && myLocLng) {
+      mapRef.current.flyTo([myLocLat, myLocLng], 15, { animate: true, duration: 0.6 });
+      return;
+    }
+    navigator.geolocation?.getCurrentPosition(({ coords: { latitude: la, longitude: lo } }) => {
+      if (window.L && mapRef.current) placeMyLoc(la, lo, window.L, mapRef.current);
+      mapRef.current.flyTo([la, lo], 15, { animate: true, duration: 0.6 });
+      setMyLocLat(la); setMyLocLng(lo);
+    });
   }
 
   async function reverseGeo(la, lo) {
     setAddrBusy(true);
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${la}&lon=${lo}&format=json`, { headers: { "Accept-Language": "he" } });
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${la}&lon=${lo}&format=json`,
+        { headers: { "Accept-Language": "he" } }
+      );
       const j = await r.json(), a = j.address || {};
-      const road = a.road || a.pedestrian || a.suburb || "", city = a.city || a.town || a.village || "", num = a.house_number || "";
-      setAddrTxt([road + (num ? " " + num : ""), city].filter(Boolean).join(", ") || j.display_name?.split(",")[0] || "מיקום נבחר");
+      const road = a.road || a.pedestrian || a.neighbourhood || a.suburb || "";
+      const city = a.city || a.town || a.village || "";
+      const num  = a.house_number || "";
+      const full = [road + (num ? " " + num : ""), city].filter(Boolean).join(", ")
+        || j.display_name?.split(",").slice(0, 2).join(", ")
+        || "מיקום נבחר";
+      setAddrTxt(full);
     } catch { setAddrTxt("מיקום נבחר"); }
     setAddrBusy(false);
-  }
-
-  function goMyLoc() {
-    navigator.geolocation?.getCurrentPosition(({ coords: { latitude: la, longitude: lo } }) => {
-      if (window.L && mapInst.current) placeUserMarker(la, lo, window.L, mapInst.current);
-      mapInst.current?.flyTo([la, lo], 15, { animate: true, duration: 0.7 });
-      pinLat.current = la; pinLng.current = lo;
-      if (selected) reverseGeo(la, lo);
-    });
   }
 
   async function handleSave() {
     if (!selected) return;
     setSaving(true);
-    await new Promise(ok => setTimeout(ok, 300));
-    const typeEmoji = { "בית": "🏠", "משרד": "🏢", "חבר": "👥", "עבודה": "💼", "מיקום אחר": "📍" }[locType] || "📍";
+    await new Promise(ok => setTimeout(ok, 350));
+    const typeEmoji = { "בית":"🏠","חבר":"👥","עבודה":"💼","משרד":"🏢","מיקום אחר":"📍" }[locType] || "📍";
     const entry = {
       label: label || locType,
       typeEmoji,
       address: addrTxt,
       zoneName: selected.short,
       zone: selected,
-      coords: { lat: pinLat.current, lng: pinLng.current },
+      coords: { lat: pinPos.lat, lng: pinPos.lng },
     };
     const prev = loadSaved();
     saveSaved([entry, ...prev]);
@@ -542,109 +623,207 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
     setSaving(false);
   }
 
-  const INP = {
-    width: "100%", border: "1.5px solid #E5E7EB", borderRadius: 11,
-    padding: "11px 13px", fontSize: 14, outline: "none", background: "white",
-    textAlign: "right", fontFamily: "inherit", boxSizing: "border-box",
-    color: DARK, direction: "rtl",
-  };
-
-  const SHEET_H = showForm ? 360 : (selected ? 110 : 0);
+  const SHEET_H = showForm ? 370 : (selected ? 100 : 0);
 
   return (
     <div style={{
-      position: "fixed", inset: 0, display: "flex", flexDirection: "column",
-      fontFamily: "system-ui,Arial,sans-serif", direction: "rtl",
-      background: "#ede8df", maxWidth: 430, margin: "0 auto", zIndex: 300,
+      position:"fixed",inset:0,display:"flex",flexDirection:"column",
+      fontFamily:"system-ui,Arial,sans-serif",direction:"rtl",
+      background:"#ede8df",maxWidth:430,margin:"0 auto",zIndex:300,
     }}>
       <style>{CSS}</style>
-      <style>{`.yg-zone-circle{cursor:pointer!important}.leaflet-container{background:#f0ece4!important}`}</style>
+      <style>{`
+        .yg-zc { cursor: pointer !important; }
+        .leaflet-container { background: #f0ece4 !important; }
+        .leaflet-tile { transition: opacity .2s; }
+      `}</style>
 
-      {/* Header */}
-      <div style={{ flexShrink:0,background:"white",padding:"10px 16px",borderBottom:"1px solid #F0F0F0",display:"flex",alignItems:"center",gap:12,zIndex:20 }}>
-        <button onClick={onBack} style={{ width:38,height:38,borderRadius:12,background:"#F3F4F6",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={DARK} strokeWidth="2.5" strokeLinecap="round">
+      {/* ── Header ── */}
+      <div style={{
+        flexShrink:0,background:"white",
+        padding:"10px 16px",borderBottom:"1px solid #F0F0F0",
+        display:"flex",alignItems:"center",gap:12,zIndex:20,
+      }}>
+        <button onClick={onBack} style={{
+          width:38,height:38,borderRadius:12,background:"#F3F4F6",
+          border:"none",cursor:"pointer",
+          display:"flex",alignItems:"center",justifyContent:"center",
+        }}>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none"
+            stroke={DARK} strokeWidth="2.5" strokeLinecap="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
         <div style={{ flex:1,textAlign:"center" }}>
           <div style={{ fontSize:15,fontWeight:900,color:DARK }}>בחר מיקום על המפה</div>
-          <div style={{ fontSize:10,color:selected?"#16A34A":GRAY,fontWeight:selected?700:400,marginTop:2,transition:"color .25s" }}>
-            {selected ? `✓ ${selected.short.split("·")[0].trim()}` : "לחץ על אזור כדי לבחור"}
+          <div style={{
+            fontSize:10,
+            color: outOfZone ? "#EF4444" : (selected ? "#16A34A" : GRAY),
+            fontWeight:700,marginTop:1,transition:"color .25s",
+          }}>
+            {outOfZone
+              ? "⚠️ אזור זה עדיין לא בשירות שלנו"
+              : selected ? `✓ ${selected.short}` : "לחץ על אזור משלוח כדי לבחור"}
           </div>
         </div>
-        <div style={{ width: 38 }}/>
+        <div style={{ width:38 }}/>
       </div>
 
-      {/* Map */}
+      {/* ── Map area ── */}
       <div style={{ flex:1,position:"relative",overflow:"hidden" }}>
         <div ref={mapEl} style={{ position:"absolute",inset:0 }}/>
 
-        {/* Loading */}
+        {/* Loading overlay */}
         {!ready && (
-          <div style={{ position:"absolute",inset:0,background:"rgba(255,255,255,.9)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,zIndex:10 }}>
-            <div style={{ width:40,height:40,borderRadius:"50%",border:`3px solid rgba(200,16,46,.15)`,borderTopColor:RED,animation:"addrSpin .8s linear infinite" }}/>
+          <div style={{
+            position:"absolute",inset:0,background:"rgba(255,255,255,.92)",
+            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            gap:12,zIndex:20,
+          }}>
+            <div style={{
+              width:42,height:42,borderRadius:"50%",
+              border:"3px solid rgba(200,16,46,.15)",borderTopColor:RED,
+              animation:"addrSpin .8s linear infinite",
+            }}/>
             <span style={{ color:GRAY,fontSize:13,fontWeight:600 }}>טוען מפה...</span>
           </div>
         )}
 
-        {/* Crosshair — when zone selected */}
-        {ready && selected && (
-          <div style={{ position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:5,pointerEvents:"none" }}>
-            <div style={{ position:"absolute",top:"50%",left:-24,right:-24,height:1.5,background:RED,transform:"translateY(-50%)",opacity:.55 }}/>
-            <div style={{ position:"absolute",left:"50%",top:-24,bottom:-24,width:1.5,background:RED,transform:"translateX(-50%)",opacity:.55 }}/>
-            <div style={{ width:12,height:12,borderRadius:"50%",background:"white",border:`3px solid ${RED}`,boxShadow:`0 0 0 4px rgba(200,16,46,.15),0 2px 8px rgba(0,0,0,.2)` }}/>
-            {/* address bubble */}
-            <div style={{ position:"absolute",bottom:"calc(100% + 10px)",left:"50%",transform:`translateX(-50%) scale(${dragging?.9:1})`,transition:"transform .18s cubic-bezier(.34,1.4,.64,1)",whiteSpace:"nowrap" }}>
-              <div style={{ background:"white",border:"1.5px solid rgba(200,16,46,.2)",borderRadius:18,padding:"5px 13px",fontSize:11,fontWeight:800,color:DARK,boxShadow:"0 3px 14px rgba(0,0,0,.10)",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:5 }}>
-                <span style={{ fontSize:12 }}>📍</span>
-                <span>{addrBusy ? "מחפש..." : addrTxt.split(",")[0]}</span>
-              </div>
-              <div style={{ width:0,height:0,borderLeft:"5px solid transparent",borderRight:"5px solid transparent",borderTop:"7px solid white",margin:"0 auto",filter:"drop-shadow(0 1px 1px rgba(0,0,0,.06))" }}/>
+        {/* ── Fixed center PIN (always visible, Wolt-style) ── */}
+        {ready && (
+          <div style={{
+            position:"absolute",
+            top:`calc(50% - ${SHEET_H/2}px)`,
+            left:"50%",
+            transform:"translate(-50%,-100%)",
+            zIndex:15,pointerEvents:"none",
+            transition:"top .3s ease",
+          }}>
+            {/* Pin shadow on map */}
+            <div style={{
+              position:"absolute",bottom:-4,left:"50%",
+              transform:`translateX(-50%) scale(${dragging?1.4:1})`,
+              width:18,height:6,borderRadius:"50%",
+              background:"rgba(0,0,0,.2)",
+              filter:"blur(3px)",
+              transition:"transform .15s ease",
+            }}/>
+            {/* Pin body */}
+            <svg width="36" height="44" viewBox="0 0 36 44" style={{
+              filter:`drop-shadow(0 4px 12px rgba(200,16,46,.45))`,
+              transform:dragging?"translateY(-6px) scale(1.08)":"translateY(0) scale(1)",
+              transition:"transform .15s cubic-bezier(.34,1.3,.64,1)",
+            }}>
+              <path d="M18 0C8.06 0 0 8.06 0 18c0 12.75 18 26 18 26S36 30.75 36 18C36 8.06 27.94 0 18 0z" fill={RED}/>
+              <circle cx="18" cy="18" r="7" fill="white"/>
+              <circle cx="18" cy="18" r="4" fill={RED}/>
+            </svg>
+          </div>
+        )}
+
+        {/* ── Address bubble above pin ── */}
+        {ready && (
+          <div style={{
+            position:"absolute",
+            top:`calc(50% - ${SHEET_H/2}px - 64px)`,
+            left:"50%",
+            transform:"translateX(-50%)",
+            zIndex:16,pointerEvents:"none",
+            transition:"top .3s ease, opacity .2s",
+            opacity: selected ? 1 : 0,
+          }}>
+            <div style={{
+              background:"white",
+              border:`1.5px solid ${outOfZone?"#FCA5A5":"rgba(200,16,46,.2)"}`,
+              borderRadius:20,
+              padding:"6px 14px",
+              fontSize:11,fontWeight:800,color:outOfZone?"#EF4444":DARK,
+              boxShadow:"0 4px 16px rgba(0,0,0,.12)",
+              maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+              display:"flex",alignItems:"center",gap:6,
+              transform: dragging ? "scale(.95)" : "scale(1)",
+              transition:"transform .15s ease",
+            }}>
+              {outOfZone
+                ? <><span>🚫</span><span>מחוץ לאזור השירות</span></>
+                : addrBusy
+                  ? <><div style={{ width:10,height:10,borderRadius:"50%",border:"2px solid #D1D5DB",borderTopColor:RED,animation:"addrSpin .7s linear infinite" }}/><span>מחפש כתובת...</span></>
+                  : <><span style={{ fontSize:13 }}>📍</span><span>{addrTxt || "גרור למיקום המדויק"}</span></>
+              }
+            </div>
+            {/* bubble tail */}
+            <div style={{
+              width:0,height:0,margin:"0 auto",
+              borderLeft:"5px solid transparent",borderRight:"5px solid transparent",
+              borderTop:`7px solid ${outOfZone?"#FCA5A5":"rgba(200,16,46,.2)"}`,
+            }}/>
+          </div>
+        )}
+
+        {/* Out-of-zone soft error banner */}
+        {outOfZone && ready && (
+          <div style={{
+            position:"absolute",bottom:SHEET_H+12,left:16,right:16,zIndex:16,
+            background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:16,
+            padding:"12px 16px",
+            display:"flex",alignItems:"center",gap:10,
+            boxShadow:"0 4px 16px rgba(239,68,68,.15)",
+            animation:"addrUp .3s both",
+          }}>
+            <span style={{ fontSize:22,flexShrink:0 }}>🗺️</span>
+            <div>
+              <div style={{ fontSize:13,fontWeight:800,color:"#991B1B" }}>אזור זה עדיין לא בשירות</div>
+              <div style={{ fontSize:11,color:"#DC2626",marginTop:2 }}>חזור לאחת מהמנות המסומנות על המפה</div>
             </div>
           </div>
         )}
 
-        {/* GPS FAB */}
+        {/* ── GPS FAB ── */}
         <button onClick={goMyLoc} style={{
-          position:"absolute",right:12,bottom:SHEET_H+14,zIndex:10,
-          width:42,height:42,background:"white",border:"none",borderRadius:"50%",
+          position:"absolute",right:14,bottom:SHEET_H+16,zIndex:10,
+          width:44,height:44,background:"white",border:"none",borderRadius:"50%",
           cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-          boxShadow:"0 3px 14px rgba(0,0,0,.16)",transition:"bottom .3s ease",
+          boxShadow:"0 4px 16px rgba(0,0,0,.18)",transition:"bottom .3s ease",
         }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="2.2" strokeLinecap="round">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none"
+            stroke={RED} strokeWidth="2.2" strokeLinecap="round">
             <circle cx="12" cy="12" r="3" fill={RED} stroke="none"/>
-            <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
-            <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+            <line x1="12" y1="2" x2="12" y2="5"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="5" y2="12"/>
+            <line x1="19" y1="12" x2="22" y2="12"/>
             <circle cx="12" cy="12" r="8"/>
           </svg>
         </button>
 
-        {/* Zoom */}
-        <div style={{ position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",zIndex:10,display:"flex",flexDirection:"column",gap:6 }}>
-          {[["+", 1], ["-", -1]].map(([l, d]) => (
+        {/* ── Zoom buttons ── */}
+        <div style={{
+          position:"absolute",left:14,bottom:SHEET_H+16,zIndex:10,
+          display:"flex",flexDirection:"column",gap:6,
+          transition:"bottom .3s ease",
+        }}>
+          {[["+",1],["-",-1]].map(([l,d]) => (
             <button key={l}
-              onClick={() => mapInst.current?.setZoom((mapInst.current.getZoom() || 11) + d)}
-              style={{ width:36,height:36,background:"white",border:"1px solid rgba(0,0,0,.07)",borderRadius:10,fontSize:17,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 8px rgba(0,0,0,.09)",color:DARK }}>
+              onClick={() => mapRef.current?.setZoom((mapRef.current.getZoom()||12)+d)}
+              style={{
+                width:38,height:38,background:"white",
+                border:"1px solid rgba(0,0,0,.07)",borderRadius:10,
+                fontSize:18,fontWeight:700,cursor:"pointer",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                boxShadow:"0 2px 8px rgba(0,0,0,.09)",color:DARK,
+              }}>
               {l}
             </button>
           ))}
         </div>
 
-        {/* Drag hint */}
-        {selected && !showForm && (
-          <div style={{ position:"absolute",bottom:SHEET_H+8,left:"50%",transform:"translateX(-50%)",zIndex:10,background:"rgba(17,24,39,.75)",backdropFilter:"blur(4px)",borderRadius:14,padding:"7px 16px",color:"white",fontSize:10,fontWeight:600,whiteSpace:"nowrap",boxShadow:"0 3px 14px rgba(0,0,0,.2)",transition:"bottom .3s" }}>
-            גרור את המפה למיקום המדויק ✋
-          </div>
-        )}
-
-        {/* Bottom sheet */}
+        {/* ── Bottom sheet ── */}
         {selected && (
           <div style={{
-            position:"absolute",bottom:0,left:0,right:0,zIndex:15,
-            height:SHEET_H, background:"white",
+            position:"absolute",bottom:0,left:0,right:0,zIndex:18,
+            height:SHEET_H,background:"white",
             borderRadius:"22px 22px 0 0",
-            boxShadow:"0 -6px 28px rgba(0,0,0,.13)",
+            boxShadow:"0 -6px 32px rgba(0,0,0,.14)",
             transition:"height .32s cubic-bezier(.34,1.1,.64,1)",
             animation:"addrSheet .32s cubic-bezier(.34,1.1,.64,1)",
             overflow:"hidden",
@@ -655,42 +834,101 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
             </div>
 
             {!showForm ? (
-              /* Collapsed */
-              <div style={{ padding:"8px 18px 14px",display:"flex",alignItems:"center",gap:12 }}>
-                <div style={{ width:44,height:44,borderRadius:12,background:`rgba(200,16,46,.07)`,border:"1.5px solid rgba(200,16,46,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>
+              /* ── Collapsed row ── */
+              <div style={{ padding:"8px 16px 14px",display:"flex",alignItems:"center",gap:12 }}>
+                <div style={{
+                  width:44,height:44,borderRadius:12,flexShrink:0,
+                  background:`rgba(200,16,46,.07)`,border:"1.5px solid rgba(200,16,46,.15)",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+                }}>
                   {selected.emoji}
                 </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:14,fontWeight:900,color:DARK }}>{selected.short}</div>
-                  <div style={{ fontSize:11,color:"#16A34A",fontWeight:700,marginTop:2 }}>✓ אזור פעיל • גרור לבחור מיקום מדויק</div>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ fontSize:13,fontWeight:900,color:DARK,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                    {addrTxt || selected.short}
+                  </div>
+                  <div style={{ fontSize:11,color:"#16A34A",fontWeight:700,marginTop:2 }}>
+                    ✓ {selected.short} • גרור לשינוי מיקום
+                  </div>
                 </div>
-                <button className="ygbtn" onClick={() => setShowForm(true)} style={{ background:`linear-gradient(135deg,${RED},#9B0B22)`,border:"none",borderRadius:13,padding:"9px 16px",color:"white",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",boxShadow:"0 3px 12px rgba(200,16,46,.3)" }}>
+                <button className="ygbtn" onClick={() => setShowForm(true)}
+                  style={{
+                    background:`linear-gradient(135deg,${RED},#9B0B22)`,
+                    border:"none",borderRadius:13,padding:"10px 18px",
+                    color:"white",fontSize:13,fontWeight:900,
+                    cursor:"pointer",fontFamily:"inherit",
+                    boxShadow:"0 4px 14px rgba(200,16,46,.35)",
+                    flexShrink:0,
+                  }}>
                   אישור ←
                 </button>
               </div>
             ) : (
-              /* Expanded form */
+              /* ── Expanded form ── */
               <div style={{ overflowY:"auto",height:"calc(100% - 24px)",padding:"0 16px 16px" }}>
-                <div style={{ background:"#F9FAFB",borderRadius:12,padding:"10px 14px",marginBottom:11,border:"1.5px solid #E9EAEB" }}>
-                  <div style={{ fontSize:11,color:GRAY,fontWeight:700,marginBottom:3 }}>אזור · כתובת</div>
+                {/* Address info card */}
+                <div style={{
+                  background:"#F9FAFB",borderRadius:13,padding:"11px 14px",
+                  marginBottom:11,border:"1.5px solid #E9EAEB",
+                }}>
+                  <div style={{ fontSize:10,color:GRAY,fontWeight:700,marginBottom:3 }}>אזור · כתובת נוכחית</div>
                   <div style={{ fontSize:13,fontWeight:800,color:DARK }}>{selected.short}</div>
-                  <div style={{ fontSize:12,color:GRAY,marginTop:2 }}>{addrBusy ? "מחפש..." : addrTxt}</div>
+                  {addrTxt && (
+                    <div style={{ fontSize:12,color:GRAY,marginTop:2 }}>{addrTxt}</div>
+                  )}
                 </div>
+
+                {/* Label */}
                 <div style={{ marginBottom:10 }}>
-                  <div style={{ fontSize:11,fontWeight:700,color:GRAY,marginBottom:5 }}>שם המיקום (אופציונלי)</div>
-                  <input style={INP} value={label} onChange={e => setLabel(e.target.value)} placeholder="לדוגמה: בית של אמא / עבודה"/>
+                  <div style={{ fontSize:11,fontWeight:700,color:GRAY,marginBottom:5 }}>
+                    שם המיקום <span style={{ opacity:.5 }}>(אופציונלי)</span>
+                  </div>
+                  <input
+                    style={{
+                      width:"100%",border:"1.5px solid #E5E7EB",borderRadius:11,
+                      padding:"11px 13px",fontSize:14,outline:"none",
+                      background:"white",textAlign:"right",fontFamily:"inherit",
+                      boxSizing:"border-box",color:DARK,direction:"rtl",
+                    }}
+                    value={label}
+                    onChange={e => setLabel(e.target.value)}
+                    placeholder="לדוגמה: בית של אמא / עבודה"
+                    onFocus={e => { e.target.style.borderColor=RED; e.target.style.boxShadow=`0 0 0 3px rgba(200,16,46,.08)`; }}
+                    onBlur={e => { e.target.style.borderColor="#E5E7EB"; e.target.style.boxShadow="none"; }}
+                  />
                 </div>
-                <div style={{ marginBottom:12 }}>
+
+                {/* Type */}
+                <div style={{ marginBottom:13 }}>
                   <div style={{ fontSize:11,fontWeight:700,color:GRAY,marginBottom:6 }}>סוג מיקום</div>
                   <div style={{ display:"flex",gap:7 }}>
                     {[{k:"בית",e:"🏠"},{k:"חבר",e:"👥"},{k:"עבודה",e:"💼"},{k:"מיקום אחר",e:"📍"}].map(t => (
-                      <button key={t.k} onClick={() => setLocType(t.k)} style={{ flex:1,padding:"7px 2px",borderRadius:11,cursor:"pointer",border:`2px solid ${locType===t.k?RED:"#E5E7EB"}`,background:locType===t.k?"rgba(200,16,46,.06)":"white",color:locType===t.k?RED:GRAY,fontSize:9,fontWeight:700,display:"flex",flexDirection:"column",alignItems:"center",gap:3,fontFamily:"inherit" }}>
+                      <button key={t.k} onClick={() => setLocType(t.k)} style={{
+                        flex:1,padding:"8px 2px",borderRadius:11,cursor:"pointer",
+                        border:`2px solid ${locType===t.k?RED:"#E5E7EB"}`,
+                        background:locType===t.k?"rgba(200,16,46,.06)":"white",
+                        color:locType===t.k?RED:GRAY,
+                        fontSize:9,fontWeight:700,
+                        display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+                        fontFamily:"inherit",transition:"all .15s",
+                      }}>
                         <span style={{ fontSize:18 }}>{t.e}</span>{t.k}
                       </button>
                     ))}
                   </div>
                 </div>
-                <button className="ygbtn" onClick={handleSave} disabled={saving} style={{ width:"100%",background:saving?GRAY:`linear-gradient(135deg,${RED},#9B0B22)`,border:"none",borderRadius:16,padding:"14px",color:"white",fontSize:15,fontWeight:900,cursor:saving?"default":"pointer",boxShadow:saving?"none":"0 5px 20px rgba(200,16,46,.36)",display:"flex",alignItems:"center",justifyContent:"center",gap:10,fontFamily:"inherit" }}>
+
+                {/* Save button */}
+                <button className="ygbtn" onClick={handleSave} disabled={saving} style={{
+                  width:"100%",
+                  background:saving?GRAY:`linear-gradient(135deg,${RED},#9B0B22)`,
+                  border:"none",borderRadius:16,padding:"14px",
+                  color:"white",fontSize:15,fontWeight:900,
+                  cursor:saving?"default":"pointer",
+                  boxShadow:saving?"none":"0 5px 20px rgba(200,16,46,.36)",
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+                  fontFamily:"inherit",
+                }}>
                   {saving
                     ? <><div style={{ width:18,height:18,borderRadius:"50%",border:"2.5px solid rgba(255,255,255,.4)",borderTopColor:"white",animation:"addrSpin .7s linear infinite" }}/>שומר...</>
                     : "שמור מיקום ✓"
@@ -709,8 +947,8 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
    ROOT EXPORT
 ══════════════════════════════════════════════ */
 export default function AddressPickerPage({ onAddressSave, initialZone, cartCount = 0 }) {
-  const navigate   = useNavigate();
-  const [step, setStep] = useState(0); // 0 = ZoneSelector, 1 = MapPicker
+  const navigate = useNavigate();
+  const [step, setStep] = useState(0);
 
   function handleSaveAndGo({ zone, coords }) {
     const norm = {

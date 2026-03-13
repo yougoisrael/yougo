@@ -2,10 +2,9 @@
 //  main.jsx — React Router v6 + PWA service worker
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import "./index.css";
-import "leaflet/dist/leaflet.css";
 import { StrictMode } from "react";
 import { createRoot }  from "react-dom/client";
-import { HashRouter }  from "react-router-dom";
+import { HashRouter }  from "react-router-dom";   // HashRouter works on Vercel static SPA
 import App from "./App";
 
 // ── Register Service Worker (PWA) ──────────────────

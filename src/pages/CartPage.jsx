@@ -115,18 +115,50 @@ function RegisterModal({ onClose, onSuccess }) {
   const [errs,  setErrs]  = useState({});
 
   // ── Step 1: Phone ───────────────────────────────
+  const [phoneExists, setPhoneExists] = useState(false);
+
   async function submitPhone() {
-    setErr("");
+    setErr(""); setPhoneExists(false);
     const raw = phone.replace(/\D/g,"");
     if (!isPhone(raw)) { setErr("מספר טלפון לא תקין"); return; }
     setBusy(true);
-    // Check phone uniqueness
-    for (const v of [raw, raw.replace(/^0/,""), "0"+raw.replace(/^0/,"")]) {
-      const { data } = await supabase.from("users").select("id").eq("phone", v).maybeSingle();
-      if (data) { setErr("מספר הטלפון כבר רשום — נסה להתחבר"); setBusy(false); return; }
+    // Check if phone already registered → show login inline
+    const variants = [raw, raw.replace(/^0/,""), "0"+raw.replace(/^0/,""),
+      "+972"+raw.replace(/^0/,""), "972"+raw.replace(/^0/,"")];
+    let found = false;
+    for (const v of variants) {
+      const { data } = await supabase.from("users").select("id,email").eq("phone", v).maybeSingle();
+      if (data) { found = true; break; }
     }
     setBusy(false);
+    if (found) {
+      setPhoneExists(true); // show password login inline
+      return;
+    }
     setStep(2);
+  }
+
+  // Login with phone → find email → login with password
+  const [phoneLoginPass, setPhoneLoginPass] = useState("");
+  const [showPhonePass, setShowPhonePass]   = useState(false);
+  async function doPhoneLogin() {
+    setErr("");
+    if (!phoneLoginPass) { setErr("הזן סיסמה"); return; }
+    setBusy(true);
+    const raw = phone.replace(/\D/g,"");
+    const variants = [raw, raw.replace(/^0/,""), "0"+raw.replace(/^0/,""),
+      "+972"+raw.replace(/^0/,""), "972"+raw.replace(/^0/,"")];
+    let email = null;
+    for (const v of variants) {
+      const { data } = await supabase.from("users").select("email").eq("phone", v).maybeSingle();
+      if (data?.email) { email = data.email; break; }
+    }
+    if (!email) { setErr("לא נמצא חשבון — נסה שוב"); setBusy(false); return; }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: phoneLoginPass });
+    setBusy(false);
+    if (error) { setErr("סיסמה שגויה"); return; }
+    const m = data.user?.user_metadata || {};
+    onSuccess({ id:data.user.id, email:data.user.email, name:(m.firstName||"")+" "+(m.lastName||""), firstName:m.firstName||"", phone:m.phone||phone });
   }
 
   // ── Step 2: Email (NO OTP) ──────────────────────
@@ -184,14 +216,22 @@ function RegisterModal({ onClose, onSuccess }) {
       setBusy(false);
       return;
     }
-    // Save to users table
+    // ✅ Save full user profile to users table
     if (data.user) {
-      await supabase.from("users").upsert({
+      const phoneRaw = phone.replace(/\D/g,"");
+      const phoneNorm = phoneRaw.startsWith("0") ? "+972"+phoneRaw.slice(1) : "+972"+phoneRaw;
+      const { error: uErr } = await supabase.from("users").upsert({
         id: data.user.id,
         name: meta.firstName+" "+meta.lastName,
-        phone: meta.phone,
+        phone: phoneNorm,
         email: eFin,
+        city: "",
+        street: "",
+        active: true,
+        orders_count: 0,
+        total_spent: 0,
       });
+      if (uErr) console.error("users table save error:", uErr.message);
     }
     setBusy(false);
     onSuccess({
@@ -199,7 +239,7 @@ function RegisterModal({ onClose, onSuccess }) {
       email: eFin,
       name: meta.firstName+" "+meta.lastName,
       firstName: meta.firstName,
-      phone: meta.phone,
+      phone: phone,
     });
   }
 
@@ -247,10 +287,43 @@ function RegisterModal({ onClose, onSuccess }) {
               />
             </div>
             {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:10,background:"#FEF2F2",borderRadius:10,padding:"10px 13px" }}>⚠️ {err}</div>}
-            <button onClick={submitPhone} disabled={busy||phone.replace(/\D/g,"").length<9}
-              style={{ width:"100%",background:busy||phone.replace(/\D/g,"").length<9?`rgba(200,16,46,.4)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy||phone.replace(/\D/g,"").length<9?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
-              {busy?<><Spinner/>בודק...</>:"הבא ←"}
-            </button>
+            {!phoneExists ? (
+              <button onClick={submitPhone} disabled={busy||phone.replace(/\D/g,"").length<9}
+                style={{ width:"100%",background:busy||phone.replace(/\D/g,"").length<9?`rgba(200,16,46,.4)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy||phone.replace(/\D/g,"").length<9?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
+                {busy?<><Spinner/>בודק...</>:"הבא ←"}
+              </button>
+            ) : (
+              // ✅ Phone exists → show inline login
+              <div style={{ background:"#F0FDF4",borderRadius:16,padding:"18px 16px",border:"1px solid #BBF7D0",marginTop:4 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
+                  <span style={{ fontSize:18 }}>✅</span>
+                  <div>
+                    <div style={{ fontSize:14,fontWeight:900,color:"#15803D" }}>מספר מוכר!</div>
+                    <div style={{ fontSize:11,color:GRAY }}>הזן סיסמה כדי להיכנס</div>
+                  </div>
+                </div>
+                <div style={{ position:"relative",marginBottom:10 }}>
+                  <input value={phoneLoginPass} onChange={e=>{ setPhoneLoginPass(e.target.value); setErr(""); }}
+                    type={showPhonePass?"text":"password"} placeholder="הסיסמה שלך" autoFocus
+                    style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:12,padding:"13px 44px 13px 14px",fontSize:14,outline:"none",direction:"ltr",fontFamily:"inherit",boxSizing:"border-box" }}
+                    onFocus={e=>e.target.style.borderColor=RED} onBlur={e=>e.target.style.borderColor="#E5E7EB"}
+                    onKeyDown={e=>e.key==="Enter"&&doPhoneLogin()}
+                  />
+                  <div style={{ position:"absolute",top:"50%",right:12,transform:"translateY(-50%)" }}>
+                    <Eye show={showPhonePass} toggle={()=>setShowPhonePass(p=>!p)}/>
+                  </div>
+                </div>
+                {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:8,background:"#FEF2F2",borderRadius:8,padding:"8px 12px" }}>⚠️ {err}</div>}
+                <button onClick={doPhoneLogin} disabled={busy}
+                  style={{ width:"100%",background:busy?`rgba(200,16,46,.5)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:900,cursor:busy?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8 }}>
+                  {busy?<><Spinner/>נכנס...</>:"כניסה ←"}
+                </button>
+                <button onClick={()=>{ setPhoneExists(false); setPhoneLoginPass(""); setErr(""); }}
+                  style={{ width:"100%",background:"none",border:"none",color:GRAY,fontSize:12,cursor:"pointer",marginTop:10,fontFamily:"inherit" }}>
+                  ← שנה מספר
+                </button>
+              </div>
+            )}
             <div style={{ textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #F3F4F6" }}>
               <span style={{ fontSize:12,color:GRAY }}>יש לך כבר חשבון? </span>
               <button onClick={onClose} style={{ background:"none",border:"none",color:RED,fontSize:12,fontWeight:700,cursor:"pointer" }}>כניסה</button>
@@ -537,6 +610,7 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
   const [showLogin,  setShowLogin]  = useState(false);
   const [showReg,    setShowReg]    = useState(false);
   const [showLocPicker, setShowLocPicker] = useState(false);
+  const [stage, setStage] = useState(1); // 1=items, 2=checkout
   const [deliveryLoc,   setDeliveryLoc]   = useState(null);
   const [savedLocs,     setSavedLocs]     = useState([]);
 
@@ -618,7 +692,7 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
 
   // ── Main cart ──
   return (
-    <div style={{ fontFamily:"system-ui,Arial,sans-serif",background:C.bg,minHeight:"100vh",maxWidth:430,margin:"0 auto",direction:"rtl",paddingBottom:130 }}>
+    <div style={{ fontFamily:"system-ui,Arial,sans-serif",background:C.bg,minHeight:"100vh",maxWidth:430,margin:"0 auto",direction:"rtl",paddingBottom:220 }}>
       <style>{`*{box-sizing:border-box} @keyframes cpSheet{from{transform:translateY(100%)}to{transform:translateY(0)}} .cp-inp:focus{border-color:${RED}!important;outline:none}`}</style>
 
       {/* Header */}
@@ -655,8 +729,8 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
           ))}
         </div>
 
-        {/* ── Delivery + Promo + Payment + Summary — logged-in only ── */}
-        {!guest && (<>
+        {/* ── Stage 2: Delivery + Promo + Payment + Summary ── */}
+        {!guest && stage === 2 && (<>
 
           {/* Delivery */}
           <div style={{ background:"white",borderRadius:16,padding:16,marginBottom:12,boxShadow:"0 2px 8px rgba(0,0,0,.06)" }}>
@@ -741,24 +815,41 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
       </div>
 
       {/* ── FIXED BOTTOM BAR — always visible ── */}
-      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"white",borderTop:"1px solid #F0F0F0",boxShadow:"0 -4px 20px rgba(0,0,0,.08)",zIndex:50,padding:"10px 16px",paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))" }}>
+      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"white",borderTop:"1px solid #F0F0F0",boxShadow:"0 -4px 20px rgba(0,0,0,.08)",zIndex:400,padding:"10px 16px",paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 10px)" }}>
+
         {/* תשלום מאובטח — always visible */}
         <div style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"#F0FDF4",borderRadius:10,padding:"7px 14px",border:"1px solid #BBF7D0",marginBottom:10 }}>
           <IcoShield s={14} c={GREEN}/>
           <span style={{ fontSize:12,color:"#15803D",fontWeight:700 }}>תשלום מאובטח ומוצפן 🔒</span>
         </div>
 
-        {/* Button changes based on auth state */}
-        {guest ? (
-          <button onClick={()=>setShowLogin(true)}
-            style={{ width:"100%",background:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"16px",fontSize:16,fontWeight:900,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 6px 20px rgba(200,16,46,.35)" }}>
-            🔐 התחבר/י להמשך הזמנה
-          </button>
-        ) : (
-          <button onClick={placeOrder} disabled={loading}
-            style={{ width:"100%",background:loading?`rgba(200,16,46,.5)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"16px",fontSize:16,fontWeight:900,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 6px 20px rgba(200,16,46,.35)" }}>
-            {loading?<><Spinner/>מעבד הזמנה...</>:<>עבור לתשלום — ₪{total}</>}
-          </button>
+        {/* STAGE 1: go to checkout or login */}
+        {stage === 1 && (
+          guest ? (
+            <button onClick={()=>setShowLogin(true)}
+              style={{ width:"100%",background:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"16px",fontSize:16,fontWeight:900,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 6px 20px rgba(200,16,46,.35)" }}>
+              🔐 התחבר/י להמשך הזמנה
+            </button>
+          ) : (
+            <button onClick={()=>setStage(2)}
+              style={{ width:"100%",background:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"16px",fontSize:16,fontWeight:900,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 6px 20px rgba(200,16,46,.35)" }}>
+              עבור לתשלום — ₪{subtotal} ←
+            </button>
+          )
+        )}
+
+        {/* STAGE 2: place order */}
+        {stage === 2 && (
+          <div style={{ display:"flex",gap:10 }}>
+            <button onClick={()=>setStage(1)}
+              style={{ background:"#F3F4F6",border:"none",borderRadius:14,padding:"14px 16px",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0,color:DARK }}>
+              ← עגלה
+            </button>
+            <button onClick={placeOrder} disabled={loading}
+              style={{ flex:1,background:loading?`rgba(200,16,46,.5)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:14,padding:"14px",fontSize:15,fontWeight:900,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 6px 20px rgba(200,16,46,.35)" }}>
+              {loading?<><Spinner/>מעבד...</>:<>אישור הזמנה — ₪{total}</>}
+            </button>
+          </div>
         )}
       </div>
 

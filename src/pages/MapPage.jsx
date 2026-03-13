@@ -4,7 +4,7 @@ import BottomNav from "../components/BottomNav";
 
 const C = { red: "#C8102E", dark: "#111827", gray: "#6B7280" };
 
-// دوائر محددة بدقة من الصور — مركز + نصف قطر بالمتر
+// إحداثيات مراكز القرى بدقة من Google Maps + نصف قطر مناسب
 const AREAS = [
   {
     id: "rame",
@@ -12,24 +12,17 @@ const AREAS = [
     emoji: "🏡",
     lat: 32.9386, lng: 35.3731,
     color: "#C8102E",
-    circles: [
-      { lat: 32.9386, lng: 35.3650, r: 1400 }, // ראמה
-      { lat: 32.9270, lng: 35.3650, r: 700  }, // סגור
-      { lat: 32.9530, lng: 35.4000, r: 900  }, // בית ג'ן
-    ],
+    // دائرة واحدة تغطي ראמה + סגור + בית ג'ן
+    circle: { lat: 32.9386, lng: 35.3820, r: 5500 },
   },
   {
     id: "karmiel",
     name: "כרמיאל - נחף - שזור - חורפיש",
     emoji: "🏙️",
-    lat: 32.9200, lng: 35.3050,
+    lat: 32.9195, lng: 35.3030,
     color: "#2563eb",
-    circles: [
-      { lat: 32.9195, lng: 35.3030, r: 2200 }, // כרמיאל
-      { lat: 32.9290, lng: 35.3240, r: 700  }, // נחף
-      { lat: 32.9220, lng: 35.3400, r: 600  }, // שזור
-      { lat: 33.0000, lng: 35.2980, r: 900  }, // חורפיש
-    ],
+    // دائرة تغطي كرميئيل ونحف وشزور وحورفيش
+    circle: { lat: 32.9500, lng: 35.3050, r: 9000 },
   },
   {
     id: "magar",
@@ -37,20 +30,16 @@ const AREAS = [
     emoji: "🌿",
     lat: 32.8980, lng: 35.4028,
     color: "#16a34a",
-    circles: [
-      { lat: 32.8980, lng: 35.4028, r: 1600 }, // מג'אר
-    ],
+    circle: { lat: 32.8980, lng: 35.4028, r: 2200 },
   },
   {
     id: "peki",
     name: "פקיעין - כסרא-סומיע",
     emoji: "🌲",
-    lat: 32.9750, lng: 35.3280,
+    lat: 32.9650, lng: 35.3250,
     color: "#9333ea",
-    circles: [
-      { lat: 32.9760, lng: 35.3310, r: 900  }, // פקיעין
-      { lat: 32.9580, lng: 35.3250, r: 1400 }, // כסרא-סומיע
-    ],
+    // دائرة تغطي פקיעין وכסרא-סומיע
+    circle: { lat: 32.9630, lng: 35.3200, r: 4500 },
   },
 ];
 
@@ -60,6 +49,7 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
   const leafRef     = useRef(null);
   const markersRef  = useRef({});
   const layersRef   = useRef([]);
+  const selectedRef = useRef(null); // منع التكرار
   const [ready,     setReady]    = useState(false);
   const [selected,  setSelected] = useState(null);
 
@@ -93,7 +83,12 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
       const m = L.marker([area.lat, area.lng], {
         icon: makeIcon(area, false), zIndexOffset: 1000,
       }).addTo(map);
-      m.on("click", e => { L.DomEvent.stopPropagation(e); onTap(area, map, L); });
+      m.on("click", e => {
+        L.DomEvent.stopPropagation(e);
+        // منع إعادة الضغط على نفس المنطقة
+        if (selectedRef.current === area.id) return;
+        onTap(area, map, L);
+      });
       markersRef.current[area.id] = m;
     });
 
@@ -102,17 +97,16 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
   }, [ready]);
 
   function makeIcon(area, active) {
-    const color = area.color || C.red;
+    const color = area.color;
     return window.L.divIcon({
       html: `
-        <div style="display:flex;flex-direction:column;align-items:center">
+        <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 4px 12px ${color}66)">
           <div style="
             width:46px;height:46px;border-radius:50%;
             background:${active ? color : "white"};
             border:2.5px solid ${color};
             display:flex;align-items:center;justify-content:center;
-            box-shadow:0 4px 18px ${color}55;
-            transition:all 0.2s;
+            transition:all 0.25s;
           ">
             <svg width="22" height="22" viewBox="0 0 24 24">
               <path fill="${active ? "white" : color}"
@@ -141,57 +135,50 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
   function deselect() {
     clearLayers();
     AREAS.forEach(a => markersRef.current[a.id]?.setIcon(makeIcon(a, false)));
+    selectedRef.current = null;
     setSelected(null);
   }
 
   function onTap(area, map, L) {
+    // تحديث الـ markers
     AREAS.forEach(a => markersRef.current[a.id]?.setIcon(makeIcon(a, false)));
     markersRef.current[area.id]?.setIcon(makeIcon(area, true));
+
+    // مسح الدوائر القديمة
     clearLayers();
+
+    // تحديث الـ state
+    selectedRef.current = area.id;
     setSelected(area);
 
-    const allBounds = [];
+    const { lat, lng, r } = area.circle;
+    const color = area.color;
 
-    area.circles.forEach(({ lat, lng, r }) => {
-      // الطبقة الخارجية — ناعمة شفافة
-      const outer = L.circle([lat, lng], {
-        radius: r,
-        color: area.color,
-        weight: 2,
-        opacity: 0.6,
-        fillColor: area.color,
-        fillOpacity: 0.10,
-        className: "smooth-circle",
-      }).addTo(map);
+    // دائرة خارجية ناعمة شفافة جداً
+    const outer = L.circle([lat, lng], {
+      radius: r,
+      color: color,
+      weight: 2,
+      opacity: 0.5,
+      fillColor: color,
+      fillOpacity: 0.08,
+    }).addTo(map);
 
-      // الطبقة الداخلية — أكثر كثافة
-      const inner = L.circle([lat, lng], {
-        radius: r * 0.55,
-        color: area.color,
-        weight: 0,
-        fillColor: area.color,
-        fillOpacity: 0.12,
-      }).addTo(map);
+    // دائرة داخلية أكثر كثافة
+    const inner = L.circle([lat, lng], {
+      radius: r * 0.5,
+      color: color,
+      weight: 0,
+      fillColor: color,
+      fillOpacity: 0.13,
+    }).addTo(map);
 
-      // النقطة المركزية
-      const dot = L.circleMarker([lat, lng], {
-        radius: 4,
-        color: "white",
-        fillColor: area.color,
-        fillOpacity: 1,
-        weight: 2,
-      }).addTo(map);
+    layersRef.current.push(outer, inner);
 
-      layersRef.current.push(outer, inner, dot);
-      allBounds.push(outer.getBounds());
+    // تحريك الخريطة مرة واحدة بس
+    map.flyToBounds(outer.getBounds(), {
+      padding: [55, 55], maxZoom: 13, duration: 0.8,
     });
-
-    // flyToBounds لكل الدوائر
-    if (allBounds.length) {
-      let combined = allBounds[0];
-      allBounds.forEach(b => { combined = combined.extend(b); });
-      map.flyToBounds(combined, { padding: [50, 50], maxZoom: 14, duration: 0.9 });
-    }
   }
 
   return (
@@ -199,10 +186,8 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
       <style>{`
         @keyframes spin    { to { transform:rotate(360deg) } }
         @keyframes slideUp { from{transform:translateY(110%);opacity:0}to{transform:translateY(0);opacity:1} }
-        @keyframes pulse   { 0%,100%{opacity:1}50%{opacity:0.6} }
         .leaflet-container { background:#e8e0d8 !important }
         .mBtn:active { transform:scale(0.92) }
-        .smooth-circle path { stroke-linejoin:round; stroke-linecap:round }
       `}</style>
 
       {/* Header */}
@@ -225,7 +210,7 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
           <div style={{fontSize:16,fontWeight:900,color:C.dark}}>בחר אזור משלוח</div>
           <div style={{
             fontSize:11,marginTop:2,fontWeight:selected?800:400,
-            color:selected?(AREAS.find(a=>a.id===selected.id)?.color||C.red):C.gray,
+            color:selected?(AREAS.find(a=>a.id===selected.id)?.color):C.gray,
             transition:"color 0.3s",
           }}>
             {selected ? `✓ ${selected.name}` : "לחץ על סמן האזור שלך"}
@@ -273,8 +258,8 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
             <div style={{
               width:48,height:48,borderRadius:14,
-              background:`${AREAS.find(a=>a.id===selected.id)?.color}18`,
-              border:`1.5px solid ${AREAS.find(a=>a.id===selected.id)?.color}33`,
+              background:`${selected.color}15`,
+              border:`1.5px solid ${selected.color}30`,
               display:"flex",alignItems:"center",justifyContent:"center",
               fontSize:22,flexShrink:0,
             }}>{selected.emoji}</div>
@@ -282,16 +267,21 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
               <div style={{fontSize:16,fontWeight:900,color:C.dark}}>{selected.name}</div>
               <div style={{fontSize:12,marginTop:2,fontWeight:700,color:"#16a34a"}}>✓ אזור פעיל • משלוח זמין</div>
             </div>
-            <button className="mBtn" onClick={deselect} style={{background:"#F3F4F6",border:"none",borderRadius:"50%",width:30,height:30,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:C.gray}}>✕</button>
+            <button className="mBtn" onClick={deselect} style={{
+              background:"#F3F4F6",border:"none",borderRadius:"50%",
+              width:30,height:30,cursor:"pointer",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:14,color:C.gray,
+            }}>✕</button>
           </div>
           <button className="mBtn"
             onClick={()=>{ onAreaSelect?.(selected); navigate("/"); }}
             style={{
               width:"100%",
-              background:`linear-gradient(135deg,${AREAS.find(a=>a.id===selected.id)?.color},${AREAS.find(a=>a.id===selected.id)?.color}cc)`,
+              background:`linear-gradient(135deg,${selected.color},${selected.color}cc)`,
               border:"none",borderRadius:16,padding:"15px",
               color:"white",fontSize:15,fontWeight:900,cursor:"pointer",
-              boxShadow:`0 4px 18px ${AREAS.find(a=>a.id===selected.id)?.color}44`,
+              boxShadow:`0 4px 18px ${selected.color}44`,
             }}>
             {`בחר ${selected.name} ←`}
           </button>

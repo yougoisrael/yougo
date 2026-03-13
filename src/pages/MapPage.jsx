@@ -66,7 +66,7 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
       attributionControl: false,
       minZoom: 10,
       maxZoom: 14,
-      maxBounds: [[32.75, 35.05], [33.20, 35.65]],
+      maxBounds: [[32.50, 34.80], [33.50, 35.90]],
       maxBoundsViscosity: 0.85,
       fadeAnimation: false,
       markerZoomAnimation: false,

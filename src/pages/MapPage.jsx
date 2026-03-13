@@ -7,78 +7,46 @@ const C = { red: "#C8102E", dark: "#111827", gray: "#6B7280" };
 // GitHub raw URLs للـ GeoJSON الحقيقي
 const BASE = "https://raw.githubusercontent.com/idoivri/israel-municipalities-polygons/master";
 
-// אסמאء المجلدات من قائمة GitHub الحقيقية
-// النمط: اسم_المجلد/اسم_المجلد.geojson
 const AREAS = [
   {
     id: "rame", name: "ראמה - סגור - בית ג׳ן", emoji: "🏡",
     lat: 32.946, lng: 35.378,
-    // bet_jan شفناه بالقائمة، rameh و sajur نمط واضح
-    files: [
-      "rameh/rameh.geojson",
-      "sajur/sajur.geojson",
-      "bet_jan/bet_jan.geojson",
-    ],
+    files: ["rameh/rameh.geojson", "sajur/sajur.geojson", "beit-jan/beit-jan.geojson"],
   },
   {
     id: "karmiel", name: "כרמיאל - נחף - מג׳ד - שזור", emoji: "🏙️",
     lat: 32.920, lng: 35.300,
-    // karmiel شغال ✅، الباقي بنفس النمط
-    files: [
-      "karmiel/karmiel.geojson",
-      "nahf/nahf.geojson",
-      "majd_al_krum/majd_al_krum.geojson",
-      "shezor/shezor.geojson",
-    ],
+    files: ["karmiel/karmiel.geojson", "nahf/nahf.geojson", "majd-al-krum/majd-al-krum.geojson", "shezor/shezor.geojson"],
   },
   {
     id: "magar", name: "מג׳אר", emoji: "🌿",
     lat: 32.899, lng: 35.403,
-    // Maghar = مغار — اسم GitHub يتبع النمط الإنجليزي
-    files: [
-      "maghar/maghar.geojson",
-    ],
+    files: ["majar/majar.geojson"],
   },
   {
     id: "peki", name: "פקיעין - כ׳ סמיע - כסרא", emoji: "🌲",
     lat: 32.966, lng: 35.322,
-    // pekiin، kisra_sumei من Wikipedia "Kisra-Sumei" → underscore
-    files: [
-      "pekiin/pekiin.geojson",
-      "kisra_sumei/kisra_sumei.geojson",
-      "kafr_sami/kafr_sami.geojson",
-    ],
+    files: ["peqi-in/peqi-in.geojson", "kafr-sama/kafr-sama.geojson", "kisra-sumei/kisra-sumei.geojson"],
   },
 ];
 
-// חילוץ coordinates מ-GeoJSON — כל הסוגים
+// חילוץ coordinates מ-GeoJSON
 function extractCoords(geojson) {
-  if (!geojson) return [];
-  if (geojson.type === "FeatureCollection")
-    return geojson.features.flatMap(f => extractCoords(f));
-  if (geojson.type === "Feature")
-    return extractCoords(geojson.geometry);
-  const geo = geojson.geometry || geojson;
-  if (!geo?.type) return [];
-  if (geo.type === "Polygon")
+  const geo = geojson?.geometry || geojson?.features?.[0]?.geometry;
+  if (!geo) return [];
+  if (geo.type === "Polygon") {
     return [geo.coordinates[0].map(([lng, lat]) => [lat, lng])];
-  if (geo.type === "MultiPolygon")
-    return geo.coordinates.flatMap(p => [p[0].map(([lng, lat]) => [lat, lng])]);
-  if (geo.type === "GeometryCollection")
-    return (geo.geometries || []).flatMap(extractCoords);
+  }
+  if (geo.type === "MultiPolygon") {
+    return geo.coordinates.map(p => p[0].map(([lng, lat]) => [lat, lng]));
+  }
   return [];
 }
 
 async function fetchAreaPolygons(area) {
   const results = await Promise.allSettled(
     area.files.map(f =>
-      fetch(`${BASE}/${f}`)
-        .then(r => {
-          if (!r.ok) { console.warn(`❌ 404: ${f}`); return null; }
-          console.log(`✅ OK: ${f}`);
-          return r.json();
-        })
-        .catch(e => { console.warn(`❌ Error: ${f}`, e); return null; })
+      fetch(`${BASE}/${f}`).then(r => r.ok ? r.json() : null).catch(() => null)
     )
   );
   return results

@@ -12,6 +12,7 @@ import {
 } from "../components/Icons";
 import BottomNav from "../components/BottomNav";
 import { supabase } from "../lib/supabase";
+import AuthPage from "./AuthPage";
 
 const RED  = "#C8102E";
 const DARK = "#111827";
@@ -131,6 +132,7 @@ export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, g
 
   // حالة التسجيل المتعدد الخطوات
   const [modal,      setModal]      = useState(null); // null | "phone" | "info" | "email" | "otp" | "password" | "login-pw"
+  const [showAuth,   setShowAuth]   = useState(false);
   const [phone,      setPhone]      = useState("");
   const [phoneErr,   setPhoneErr]   = useState("");
   const [phoneBusy,  setPhoneBusy]  = useState(false);
@@ -369,7 +371,7 @@ export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, g
           ))}
         </div>
 
-        <Btn onClick={() => { setPhone(""); setPhoneErr(""); setModal("phone"); }}>
+        <Btn onClick={() => setShowAuth(true)}>
           📱 הירשם / התחבר
         </Btn>
       </div>
@@ -521,6 +523,17 @@ export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, g
       )}
 
       <BottomNav cartCount={cartCount}/>
+
+      {/* Auth Modal */}
+      {showAuth && (
+        <div style={{position:"fixed",inset:0,zIndex:9999,overflowY:"auto"}}>
+          <AuthPage
+            onDone={(u) => { setShowAuth(false); onAuthDone?.(u); }}
+            onGuest={() => setShowAuth(false)}
+            onBusiness={() => setShowAuth(false)}
+          />
+        </div>
+      )}
     </div>
   );
 

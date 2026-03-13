@@ -199,7 +199,15 @@ export default function App() {
       <Route path="/cards"    element={<CardsPage guest={!authed} onLogin={() => {}}/>}/>
       <Route path="/invite"   element={<InvitePage user={user} guest={!authed} onLogin={() => {}}/>}/>
       <Route path="/support"  element={<SupportPage user={user}/>}/>
-      <Route path="/address"  element={<AddressPickerPage onAddressSave={(a)=>console.log(a)}/>}/>
+      <Route path="/address"  element={
+        <AddressPickerPage
+          initialZone={selectedArea}
+          onAddressSave={(a) => {
+            handleAreaSelect(a.zone || selectedArea);
+            try { localStorage.setItem("yougo_address", JSON.stringify(a)); } catch {}
+          }}
+        />
+      }/>
       <Route path="/business" element={<BusinessPortal onBack={() => window.history.back()}/>}/>
       <Route path="/admin/zones" element={<AdminZonesPage/>}/>
       <Route path="/admin" element={

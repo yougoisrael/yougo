@@ -168,17 +168,33 @@ export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, g
     if (!isPhone(raw)) { setPhoneErr("הזן מספר טלפון תקין"); return; }
     setPhoneBusy(true);
 
-    // فحص إذا الهاتف موجود
+    // نجرب كل صيغ الرقم — مع 0 وبدون 0 ومع 972
+    const stripped = raw.replace(/^972/,"").replace(/^0/,"");
+    const variants = [
+      raw,
+      "0" + stripped,
+      stripped,
+      "972" + stripped,
+    ];
+
     let found = null;
-    for (const v of [raw, raw.replace(/^0/,""), "0"+raw.replace(/^0/,"")]) {
-      const { data } = await supabase.from("users").select("email").eq("phone",v).maybeSingle();
-      if (data?.email) { found = data.email; break; }
+    for (const v of variants) {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("email")
+          .eq("phone", v)
+          .maybeSingle();
+        if (!error && data?.email) { found = data.email; break; }
+      } catch {}
     }
     setPhoneBusy(false);
 
     if (found) {
       // مستخدم موجود — اطلب رقم السري فقط
       setEmail(found);
+      setPass("");
+      setPassErr("");
       setModal("login-pw");
     } else {
       // جديد — انتقل لمعلومات
@@ -248,10 +264,15 @@ export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, g
     if (pass !== pass2) { setPassErr("הסיסמאות אינן תואמות"); return; }
     setPassBusy(true);
 
+    // نحفظ الرقم بصيغة موحدة — مع 0 في البداية
+    const rawPhone = phone.replace(/\D/g,"");
+    const stripped = rawPhone.replace(/^972/,"").replace(/^0/,"");
+    const normalPhone = "0" + stripped;
+
     const meta = {
       firstName: regInfo.firstName.trim(),
       lastName:  regInfo.lastName.trim(),
-      phone:     phone.replace(/\D/g,""),
+      phone:     normalPhone,
       gender:    regInfo.gender,
       age:       regInfo.age,
     };
@@ -261,12 +282,20 @@ export default function ProfilePage({ user, cartCount, onLogout, onUserUpdate, g
 
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
+      const strippedSave = meta.phone.replace(/^0/,"");
       await supabase.from("users").upsert({
         id:    session.user.id,
         name:  meta.firstName+" "+meta.lastName,
-        phone: meta.phone,
+        phone: meta.phone,        // صيغة "0XX..."
         email: email.trim().toLowerCase(),
       });
+      // نحفظ الصيغة البديلة أيضاً لو ما انحفظت
+      await supabase.from("users").upsert({
+        id:    session.user.id,
+        name:  meta.firstName+" "+meta.lastName,
+        phone: strippedSave,      // صيغة بدون 0
+        email: email.trim().toLowerCase(),
+      }).then(() => {}).catch(() => {});
       onAuthDone?.({
         id:        session.user.id,
         email:     session.user.email,

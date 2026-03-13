@@ -136,7 +136,7 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
       dashArray:   "6,4",
     }).addTo(map);
 
-    map.flyTo([area.lat, area.lng], 12, { duration: 0.5 });
+    
     setSelected(area);
   }
 

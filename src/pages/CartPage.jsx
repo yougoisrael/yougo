@@ -98,17 +98,13 @@ function TrackingScreen({ orderId, total, navigate }) {
 }
 
 // ══════════════════════════════════════════════════
-//  REGISTRATION MODAL — 4 Steps:
-//  1. טלפון  2. אימייל + קוד  3. פרטים  4. סיסמה
+//  REGISTRATION MODAL — 4 Steps (NO OTP):
+//  1. טלפון  2. אימייל  3. פרטים  4. סיסמה
 // ══════════════════════════════════════════════════
 function RegisterModal({ onClose, onSuccess }) {
-  const [step, setStep]   = useState(1); // 1=phone, 2=email+otp, 3=info, 4=password
+  const [step, setStep]   = useState(1); // 1=phone, 2=email, 3=info, 4=password
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [otp,   setOtp]   = useState(["","","","","",""]);
-  const [otpSent, setOtpSent] = useState(false);
-  const [timer,  setTimer]  = useState(60);
-  const [canResend, setCanResend] = useState(false);
   const [info, setInfo]   = useState({ firstName:"", lastName:"", gender:"", age:"" });
   const [pass,  setPass]  = useState("");
   const [pass2, setPass2] = useState("");
@@ -117,18 +113,6 @@ function RegisterModal({ onClose, onSuccess }) {
   const [busy,  setBusy]  = useState(false);
   const [err,   setErr]   = useState("");
   const [errs,  setErrs]  = useState({});
-  const otpRefs = useRef([]);
-
-  // Timer for OTP resend
-  useEffect(() => {
-    if (!otpSent) return;
-    setTimer(60); setCanResend(false);
-    const t = setInterval(() => setTimer(p => {
-      if (p <= 1) { clearInterval(t); setCanResend(true); return 0; }
-      return p - 1;
-    }), 1000);
-    return () => clearInterval(t);
-  }, [otpSent]);
 
   // ── Step 1: Phone ───────────────────────────────
   async function submitPhone() {
@@ -139,44 +123,22 @@ function RegisterModal({ onClose, onSuccess }) {
     // Check phone uniqueness
     for (const v of [raw, raw.replace(/^0/,""), "0"+raw.replace(/^0/,"")]) {
       const { data } = await supabase.from("users").select("id").eq("phone", v).maybeSingle();
-      if (data) { setErr("מספר הטלפון כבר רשום לחשבון אחר"); setBusy(false); return; }
+      if (data) { setErr("מספר הטלפון כבר רשום — נסה להתחבר"); setBusy(false); return; }
     }
     setBusy(false);
     setStep(2);
   }
 
-  // ── Step 2: Email + OTP ─────────────────────────
-  async function sendOTP() {
+  // ── Step 2: Email (NO OTP) ──────────────────────
+  async function submitEmail() {
     setErr("");
     const e = email.trim().toLowerCase();
     if (!isEmail(e)) { setErr("כתובת אימייל לא תקינה"); return; }
     setBusy(true);
-    // Check email uniqueness
+    // Check email uniqueness in our users table
     const { data: existing } = await supabase.from("users").select("id").eq("email", e).maybeSingle();
     if (existing) { setErr("האימייל כבר רשום — נסה להתחבר"); setBusy(false); return; }
-    const { error } = await supabase.auth.signInWithOtp({ email: e, options: { shouldCreateUser: true } });
     setBusy(false);
-    if (error) {
-      if (error.status===429||error.message?.includes("rate")) setErr("יותר מדי בקשות — המתן דקה");
-      else setErr("שגיאה בשליחת קוד — נסה שוב");
-      return;
-    }
-    setOtpSent(true);
-  }
-
-  function onDigit(i, v) {
-    if (!/^\d*$/.test(v)) return;
-    const n = [...otp]; n[i] = v.slice(-1); setOtp(n); setErr("");
-    if (v && i < 5) otpRefs.current[i+1]?.focus();
-    if (n.join("").length === 6) verifyOTP(n.join(""));
-  }
-  function onBk(i, e) { if (e.key==="Backspace"&&!otp[i]&&i>0) otpRefs.current[i-1]?.focus(); }
-
-  async function verifyOTP(code) {
-    setBusy(true);
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type:"email" });
-    setBusy(false);
-    if (error) { setErr("הקוד שגוי — נסה שוב"); setOtp(["","","","","",""]); setTimeout(()=>otpRefs.current[0]?.focus(),100); return; }
     setStep(3);
   }
 
@@ -193,33 +155,52 @@ function RegisterModal({ onClose, onSuccess }) {
     setStep(4);
   }
 
-  // ── Step 4: Password + Final ────────────────────
+  // ── Step 4: Password + Create Account ──────────
   async function submitPassword() {
     setErr("");
     const pe = pwErr(pass);
     if (pe) { setErr(pe); return; }
     if (pass !== pass2) { setErr("הסיסמאות אינן תואמות"); return; }
     setBusy(true);
+    const eFin = email.trim().toLowerCase();
     const meta = {
       firstName: info.firstName.trim(),
       lastName:  info.lastName.trim(),
       phone, gender: info.gender, age: info.age,
     };
-    // Update password + metadata
-    const { data: { session } } = await supabase.auth.getSession();
-    const { error: upErr } = await supabase.auth.updateUser({ password: pass, data: meta });
-    if (upErr) { setErr("שגיאה בשמירה — נסה שוב"); setBusy(false); return; }
+    // Create account with email + password directly
+    const { data, error } = await supabase.auth.signUp({
+      email: eFin,
+      password: pass,
+      options: { data: meta },
+    });
+    if (error) {
+      const m = error.message?.toLowerCase();
+      if (m?.includes("already")||m?.includes("registered")) {
+        setErr("האימייל כבר רשום — נסה להתחבר");
+      } else {
+        setErr("שגיאה: " + (error.message || "נסה שוב"));
+      }
+      setBusy(false);
+      return;
+    }
     // Save to users table
-    if (session?.user) {
+    if (data.user) {
       await supabase.from("users").upsert({
-        id: session.user.id,
+        id: data.user.id,
         name: meta.firstName+" "+meta.lastName,
         phone: meta.phone,
-        email: email.trim().toLowerCase(),
+        email: eFin,
       });
     }
     setBusy(false);
-    onSuccess({ id: session?.user?.id, email: email.trim().toLowerCase(), name: meta.firstName+" "+meta.lastName, firstName: meta.firstName, phone: meta.phone });
+    onSuccess({
+      id: data.user?.id,
+      email: eFin,
+      name: meta.firstName+" "+meta.lastName,
+      firstName: meta.firstName,
+      phone: meta.phone,
+    });
   }
 
   const STEPS_LABELS = ["📱 טלפון","📧 אימייל","👤 פרטים","🔒 סיסמה"];
@@ -236,12 +217,12 @@ function RegisterModal({ onClose, onSuccess }) {
           </button>
           <div style={{ color:"white",fontSize:20,fontWeight:900,marginBottom:4 }}>הצטרף ל-Yougo 🚀</div>
           <div style={{ color:"rgba(255,255,255,.7)",fontSize:12 }}>צור חשבון — מהיר ופשוט</div>
-          {/* Steps */}
+          {/* Steps progress */}
           <div style={{ display:"flex",gap:6,marginTop:16 }}>
             {STEPS_LABELS.map((l,i) => (
               <div key={i} style={{ flex:1,textAlign:"center" }}>
                 <div style={{ height:3,borderRadius:2,background:i+1<=step?"white":"rgba(255,255,255,.25)",marginBottom:4,transition:"background .3s" }}/>
-                <span style={{ fontSize:8,color:i+1<=step?"white":"rgba(255,255,255,.45)",fontWeight:i+1===step?800:400 }}>{l}</span>
+                <span style={{ fontSize:9,color:i+1<=step?"white":"rgba(255,255,255,.45)",fontWeight:i+1===step?800:400 }}>{l}</span>
               </div>
             ))}
           </div>
@@ -252,7 +233,7 @@ function RegisterModal({ onClose, onSuccess }) {
           {/* ── STEP 1: PHONE ── */}
           {step === 1 && (<>
             <div style={{ fontSize:16,fontWeight:900,color:DARK,marginBottom:4 }}>📱 מספר טלפון</div>
-            <div style={{ fontSize:12,color:GRAY,marginBottom:18 }}>הזן מספר טלפון — לא יהיה ניתן לשנות</div>
+            <div style={{ fontSize:12,color:GRAY,marginBottom:18 }}>הזן מספר — ייחודי לכל חשבון</div>
             <div style={{ display:"flex",gap:8,marginBottom:8 }}>
               <div style={{ background:"#F9FAFB",border:"1.5px solid #E5E7EB",borderRadius:14,padding:"13px 12px",display:"flex",alignItems:"center",gap:6,flexShrink:0 }}>
                 <span style={{ fontSize:18 }}>🇮🇱</span>
@@ -265,53 +246,33 @@ function RegisterModal({ onClose, onSuccess }) {
                 onKeyDown={e=>e.key==="Enter"&&submitPhone()}
               />
             </div>
-            {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:10 }}>⚠️ {err}</div>}
-            <button onClick={submitPhone} disabled={busy} style={{ width:"100%",background:busy?`rgba(200,16,46,.5)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
-              {busy?<><Spinner/>בודק...</>:"הבא — אימייל ←"}
+            {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:10,background:"#FEF2F2",borderRadius:10,padding:"10px 13px" }}>⚠️ {err}</div>}
+            <button onClick={submitPhone} disabled={busy||phone.replace(/\D/g,"").length<9}
+              style={{ width:"100%",background:busy||phone.replace(/\D/g,"").length<9?`rgba(200,16,46,.4)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy||phone.replace(/\D/g,"").length<9?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
+              {busy?<><Spinner/>בודק...</>:"הבא ←"}
             </button>
+            <div style={{ textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #F3F4F6" }}>
+              <span style={{ fontSize:12,color:GRAY }}>יש לך כבר חשבון? </span>
+              <button onClick={onClose} style={{ background:"none",border:"none",color:RED,fontSize:12,fontWeight:700,cursor:"pointer" }}>כניסה</button>
+            </div>
           </>)}
 
-          {/* ── STEP 2: EMAIL + OTP ── */}
+          {/* ── STEP 2: EMAIL (NO OTP) ── */}
           {step === 2 && (<>
             <div style={{ fontSize:16,fontWeight:900,color:DARK,marginBottom:4 }}>📧 כתובת אימייל</div>
-            <div style={{ fontSize:12,color:GRAY,marginBottom:18 }}>
-              {otpSent ? `שלחנו קוד אימות ל-${email}` : "הזן אימייל — ישלח קוד אימות"}
-            </div>
-
-            {!otpSent ? (<>
-              <input value={email} onChange={e=>{ setEmail(e.target.value); setErr(""); }}
-                placeholder="example@email.com" type="email" autoFocus
-                style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:14,padding:"13px 14px",fontSize:14,outline:"none",direction:"ltr",fontFamily:"inherit",color:DARK,marginBottom:8,boxSizing:"border-box" }}
-                onFocus={e=>e.target.style.borderColor=RED} onBlur={e=>e.target.style.borderColor="#E5E7EB"}
-                onKeyDown={e=>e.key==="Enter"&&sendOTP()}
-              />
-              {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:10 }}>⚠️ {err}</div>}
-              <button onClick={sendOTP} disabled={busy} style={{ width:"100%",background:busy?`rgba(200,16,46,.5)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
-                {busy?<><Spinner/>שולח...</>:"✉️ שלח קוד לאימייל"}
-              </button>
-            </>) : (<>
-              {/* OTP boxes */}
-              <div style={{ display:"flex",gap:8,justifyContent:"center",direction:"ltr",marginBottom:12 }}>
-                {otp.map((d,i) => (
-                  <input key={i} ref={el=>otpRefs.current[i]=el}
-                    type="tel" inputMode="numeric" maxLength={1} value={d}
-                    onChange={e=>onDigit(i,e.target.value)}
-                    onKeyDown={e=>onBk(i,e)}
-                    autoFocus={i===0}
-                    style={{ width:44,height:54,border:`2px solid ${d?RED:"#E5E7EB"}`,borderRadius:12,fontSize:22,fontWeight:900,textAlign:"center",outline:"none",color:DARK,fontFamily:"inherit",transition:"border-color .15s",background:d?"rgba(200,16,46,.04)":"white" }}
-                  />
-                ))}
-              </div>
-              {err && <div style={{ color:RED,fontSize:12,fontWeight:600,textAlign:"center",marginBottom:10 }}>⚠️ {err}</div>}
-              {busy && <div style={{ textAlign:"center",padding:8 }}><Spinner s={28} c={RED}/></div>}
-              <div style={{ textAlign:"center",marginTop:12 }}>
-                {canResend
-                  ? <button onClick={sendOTP} style={{ background:"none",border:"none",color:RED,fontSize:13,fontWeight:700,cursor:"pointer" }}>שלח קוד חדש 🔄</button>
-                  : <div style={{ color:GRAY,fontSize:12 }}>שלח שוב בעוד <b style={{ color:RED }}>{timer}</b> שניות</div>
-                }
-              </div>
-            </>)}
-            <button onClick={()=>{ setStep(1); setErr(""); }} style={{ marginTop:14,background:"none",border:"none",color:GRAY,fontSize:13,cursor:"pointer",width:"100%" }}>← חזור</button>
+            <div style={{ fontSize:12,color:GRAY,marginBottom:18 }}>ייחודי לכל חשבון — לא ניתן לשינוי</div>
+            <input value={email} onChange={e=>{ setEmail(e.target.value); setErr(""); }}
+              placeholder="example@email.com" type="email" autoFocus
+              style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:14,padding:"13px 14px",fontSize:14,outline:"none",direction:"ltr",fontFamily:"inherit",color:DARK,marginBottom:8,boxSizing:"border-box" }}
+              onFocus={e=>e.target.style.borderColor=RED} onBlur={e=>e.target.style.borderColor="#E5E7EB"}
+              onKeyDown={e=>e.key==="Enter"&&submitEmail()}
+            />
+            {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:10,background:"#FEF2F2",borderRadius:10,padding:"10px 13px" }}>⚠️ {err}</div>}
+            <button onClick={submitEmail} disabled={busy||!isEmail(email)}
+              style={{ width:"100%",background:busy||!isEmail(email)?`rgba(200,16,46,.4)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy||!isEmail(email)?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
+              {busy?<><Spinner/>בודק...</>:"הבא ←"}
+            </button>
+            <button onClick={()=>{ setStep(1); setErr(""); }} style={{ marginTop:14,background:"none",border:"none",color:GRAY,fontSize:13,cursor:"pointer",width:"100%",fontFamily:"inherit" }}>← חזור</button>
           </>)}
 
           {/* ── STEP 3: INFO ── */}
@@ -356,10 +317,11 @@ function RegisterModal({ onClose, onSuccess }) {
               />
               {errs.age && <div style={{ color:RED,fontSize:11,marginTop:3 }}>{errs.age}</div>}
             </div>
-            <button onClick={submitInfo} style={{ width:"100%",background:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:"pointer",boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
-              הבא — סיסמה ←
+            <button onClick={submitInfo}
+              style={{ width:"100%",background:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:"pointer",boxShadow:"0 5px 18px rgba(200,16,46,.35)" }}>
+              הבא ←
             </button>
-            <button onClick={()=>{ setStep(2); setErr(""); }} style={{ marginTop:14,background:"none",border:"none",color:GRAY,fontSize:13,cursor:"pointer",width:"100%" }}>← חזור</button>
+            <button onClick={()=>{ setStep(2); setErr(""); }} style={{ marginTop:14,background:"none",border:"none",color:GRAY,fontSize:13,cursor:"pointer",width:"100%",fontFamily:"inherit" }}>← חזור</button>
           </>)}
 
           {/* ── STEP 4: PASSWORD ── */}
@@ -372,14 +334,13 @@ function RegisterModal({ onClose, onSuccess }) {
                 <input value={pass} onChange={e=>{ setPass(e.target.value); setErr(""); }}
                   type={showP?"text":"password"} placeholder="לפחות 8 תווים + אות גדולה + מספר"
                   autoFocus
-                  style={{ width:"100%",border:`1.5px solid ${err&&!pass2?RED:"#E5E7EB"}`,borderRadius:12,padding:"12px 44px 12px 13px",fontSize:13,outline:"none",direction:"ltr",fontFamily:"inherit",boxSizing:"border-box" }}
+                  style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:12,padding:"12px 44px 12px 13px",fontSize:13,outline:"none",direction:"ltr",fontFamily:"inherit",boxSizing:"border-box" }}
                   onFocus={e=>e.target.style.borderColor=RED} onBlur={e=>e.target.style.borderColor="#E5E7EB"}
                 />
                 <div style={{ position:"absolute",top:"50%",right:12,transform:"translateY(-50%)" }}>
                   <Eye show={showP} toggle={()=>setShowP(p=>!p)}/>
                 </div>
               </div>
-              {/* Password strength */}
               {pass.length > 0 && (
                 <div style={{ marginTop:8,display:"flex",flexDirection:"column",gap:4 }}>
                   {[{ok:pass.length>=8,t:"8 תווים לפחות"},{ok:/[A-Z]/.test(pass),t:"אות גדולה"},{ok:/\d/.test(pass),t:"מספר"}].map((r,i)=>(
@@ -404,23 +365,17 @@ function RegisterModal({ onClose, onSuccess }) {
                   <Eye show={showP2} toggle={()=>setShowP2(p=>!p)}/>
                 </div>
               </div>
-              {pass2 && pass2 !== pass && <div style={{ color:RED,fontSize:11,marginTop:3 }}>הסיסמאות אינן תואמות</div>}
-              {pass2 && pass2 === pass && pass2.length > 0 && <div style={{ color:GREEN,fontSize:11,marginTop:3 }}>✓ הסיסמאות תואמות</div>}
+              {pass2 && pass2!==pass && <div style={{ color:RED,fontSize:11,marginTop:3 }}>הסיסמאות אינן תואמות</div>}
+              {pass2 && pass2===pass && <div style={{ color:GREEN,fontSize:11,marginTop:3 }}>✓ הסיסמאות תואמות</div>}
             </div>
-            {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:10,background:"#FEF2F2",borderRadius:10,padding:"10px 13px" }}>⚠️ {err}</div>}
-            <button onClick={submitPassword} disabled={busy||!pwStrong(pass)||pass!==pass2} style={{ width:"100%",background:busy||!pwStrong(pass)||pass!==pass2?`rgba(200,16,46,.4)`:`linear-gradient(135deg,${GREEN},#14532D)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy||!pwStrong(pass)||pass!==pass2?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(22,163,74,.35)",transition:"all .2s" }}>
+            {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:12,background:"#FEF2F2",borderRadius:10,padding:"10px 13px" }}>⚠️ {err}</div>}
+            <button onClick={submitPassword} disabled={busy||!pwStrong(pass)||pass!==pass2}
+              style={{ width:"100%",background:busy||!pwStrong(pass)||pass!==pass2?`rgba(34,197,94,.4)`:`linear-gradient(135deg,${GREEN},#14532D)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy||!pwStrong(pass)||pass!==pass2?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(22,163,74,.35)",transition:"all .2s" }}>
               {busy?<><Spinner/>יוצר חשבון...</>:"✅ יצירת חשבון"}
             </button>
-            <button onClick={()=>{ setStep(3); setErr(""); }} style={{ marginTop:14,background:"none",border:"none",color:GRAY,fontSize:13,cursor:"pointer",width:"100%" }}>← חזור</button>
+            <button onClick={()=>{ setStep(3); setErr(""); }} style={{ marginTop:14,background:"none",border:"none",color:GRAY,fontSize:13,cursor:"pointer",width:"100%",fontFamily:"inherit" }}>← חזור</button>
           </>)}
 
-          {/* Already have account */}
-          {step === 1 && (
-            <div style={{ textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #F3F4F6" }}>
-              <span style={{ fontSize:12,color:GRAY }}>יש לך כבר חשבון? </span>
-              <button onClick={onClose} style={{ background:"none",border:"none",color:RED,fontSize:12,fontWeight:700,cursor:"pointer" }}>כניסה</button>
-            </div>
-          )}
         </div>
         <style>{`@keyframes cpSheet{from{transform:translateY(100%)}to{transform:translateY(0)}}*{box-sizing:border-box}`}</style>
       </div>
@@ -430,112 +385,63 @@ function RegisterModal({ onClose, onSuccess }) {
 
 // ── Login Modal (existing user) ─────────────────────
 function LoginModal({ onClose, onSuccess, onRegister }) {
-  const [email,   setEmail]   = useState("");
-  const [pass,    setPass]    = useState("");
-  const [showP,   setShowP]   = useState(false);
-  const [busy,    setBusy]    = useState(false);
-  const [err,     setErr]     = useState("");
-  const [mode,    setMode]    = useState("login"); // login | otp
-
-  // OTP mode
-  const [otp,     setOtp]     = useState(["","","","","",""]);
-  const [otpSent, setOtpSent] = useState(false);
-  const [timer,   setTimer]   = useState(60);
-  const [canR,    setCanR]    = useState(false);
-  const otpRefs = useRef([]);
-
-  useEffect(() => {
-    if (!otpSent) return;
-    setTimer(60); setCanR(false);
-    const t = setInterval(() => setTimer(p => { if(p<=1){clearInterval(t);setCanR(true);return 0;} return p-1; }), 1000);
-    return () => clearInterval(t);
-  }, [otpSent]);
+  const [email,  setEmail]  = useState("");
+  const [pass,   setPass]   = useState("");
+  const [showP,  setShowP]  = useState(false);
+  const [busy,   setBusy]   = useState(false);
+  const [err,    setErr]    = useState("");
 
   async function doLogin() {
     setErr("");
     if (!isEmail(email)) { setErr("אימייל לא תקין"); return; }
     if (!pass) { setErr("הזן סיסמה"); return; }
     setBusy(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: pass });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(), password: pass,
+    });
     setBusy(false);
     if (error) { setErr("אימייל או סיסמה שגויים"); return; }
     const m = data.user?.user_metadata || {};
-    onSuccess({ id:data.user.id, email:data.user.email, name:(m.firstName||"")+" "+(m.lastName||""), firstName:m.firstName||"", phone:m.phone||"" });
-  }
-
-  async function doSendOTP() {
-    setErr("");
-    if (!isEmail(email)) { setErr("אימייל לא תקין"); return; }
-    setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim().toLowerCase(), options:{ shouldCreateUser:false } });
-    setBusy(false);
-    if (error) { setErr("אימייל לא נמצא — הירשם"); return; }
-    setOtpSent(true);
-  }
-
-  function onDigit(i, v) {
-    if (!/^\d*$/.test(v)) return;
-    const n = [...otp]; n[i] = v.slice(-1); setOtp(n); setErr("");
-    if (v && i < 5) otpRefs.current[i+1]?.focus();
-    if (n.join("").length === 6) doVerify(n.join(""));
-  }
-  function onBk(i, e) { if (e.key==="Backspace"&&!otp[i]&&i>0) otpRefs.current[i-1]?.focus(); }
-
-  async function doVerify(code) {
-    setBusy(true);
-    const { data, error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type:"email" });
-    setBusy(false);
-    if (error) { setErr("הקוד שגוי"); setOtp(["","","","","",""]); setTimeout(()=>otpRefs.current[0]?.focus(),100); return; }
-    const m = data.user?.user_metadata || {};
-    onSuccess({ id:data.user.id, email:data.user.email, name:(m.firstName||"")+" "+(m.lastName||""), firstName:m.firstName||"", phone:m.phone||"" });
+    onSuccess({
+      id: data.user.id, email: data.user.email,
+      name: (m.firstName||"")+" "+(m.lastName||""),
+      firstName: m.firstName||"", phone: m.phone||"",
+    });
   }
 
   return (
     <div style={{ position:"fixed",inset:0,zIndex:4000,background:"rgba(0,0,0,.65)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-end",fontFamily:"system-ui,Arial,sans-serif",direction:"rtl" }}
       onClick={e => { if(e.target===e.currentTarget) onClose(); }}>
-      <div style={{ width:"100%",maxWidth:430,margin:"0 auto",background:"white",borderRadius:"26px 26px 0 0",padding:"22px 20px 44px",animation:"cpSheet .32s cubic-bezier(.34,1.1,.64,1)" }}>
-        <div style={{ display:"flex",justifyContent:"center",marginBottom:16 }}>
-          <div style={{ width:38,height:4,background:"#E5E7EB",borderRadius:2 }}/>
-        </div>
-        <button onClick={onClose} style={{ position:"absolute",top:18,left:18,width:34,height:34,borderRadius:"50%",background:"#F3F4F6",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-        <div style={{ fontSize:22,fontWeight:900,color:DARK,marginBottom:4 }}>כניסה לחשבון 👋</div>
-        <div style={{ fontSize:12,color:GRAY,marginBottom:20 }}>
-          {mode==="otp"&&otpSent ? `שלחנו קוד ל-${email}` : "התחבר כדי להמשיך עם ההזמנה"}
+      <div style={{ width:"100%",maxWidth:430,margin:"0 auto",background:"white",borderRadius:"26px 26px 0 0",padding:"0 0 44px",animation:"cpSheet .32s cubic-bezier(.34,1.1,.64,1)" }}>
+
+        {/* Header */}
+        <div style={{ background:`linear-gradient(135deg,${RED},#8B0B1E)`,padding:"22px 20px 24px",borderRadius:"26px 26px 0 0",position:"relative",marginBottom:22 }}>
+          <button onClick={onClose} style={{ position:"absolute",top:16,left:16,background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <div style={{ color:"white",fontSize:20,fontWeight:900,marginBottom:3 }}>כניסה לחשבון 👋</div>
+          <div style={{ color:"rgba(255,255,255,.7)",fontSize:12 }}>התחבר כדי להמשיך עם ההזמנה</div>
         </div>
 
-        {/* Mode toggle */}
-        <div style={{ display:"flex",gap:8,marginBottom:16 }}>
-          {[{id:"login",l:"🔑 סיסמה"},{id:"otp",l:"✉️ קוד לאימייל"}].map(m=>(
-            <button key={m.id} type="button" onClick={()=>{ setMode(m.id); setErr(""); setOtp(["","","","","",""]); setOtpSent(false); }}
-              style={{ flex:1,padding:"10px 6px",borderRadius:12,border:`2px solid ${mode===m.id?RED:"#E5E7EB"}`,background:mode===m.id?"rgba(200,16,46,.05)":"white",color:mode===m.id?RED:GRAY,fontSize:12,fontWeight:mode===m.id?800:500,cursor:"pointer",fontFamily:"inherit",transition:"all .15s" }}>
-              {m.l}
-            </button>
-          ))}
-        </div>
-
-        {/* Email */}
-        {(!otpSent) && (
+        <div style={{ padding:"0 20px" }}>
+          {/* Email */}
           <div style={{ marginBottom:12 }}>
             <div style={{ fontSize:11,fontWeight:700,color:GRAY,marginBottom:5 }}>כתובת אימייל</div>
             <input value={email} onChange={e=>{ setEmail(e.target.value); setErr(""); }}
               placeholder="example@email.com" type="email" autoFocus
-              style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:12,padding:"12px 14px",fontSize:14,outline:"none",direction:"ltr",fontFamily:"inherit",boxSizing:"border-box" }}
+              style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:12,padding:"13px 14px",fontSize:14,outline:"none",direction:"ltr",fontFamily:"inherit",boxSizing:"border-box" }}
               onFocus={e=>e.target.style.borderColor=RED} onBlur={e=>e.target.style.borderColor="#E5E7EB"}
-              onKeyDown={e=>e.key==="Enter"&&(mode==="login"?doLogin():doSendOTP())}
+              onKeyDown={e=>e.key==="Enter"&&document.getElementById("cart-login-pass")?.focus()}
             />
           </div>
-        )}
 
-        {/* Password */}
-        {mode==="login" && !otpSent && (
-          <div style={{ marginBottom:12 }}>
+          {/* Password */}
+          <div style={{ marginBottom:14 }}>
             <div style={{ fontSize:11,fontWeight:700,color:GRAY,marginBottom:5 }}>סיסמה</div>
             <div style={{ position:"relative" }}>
-              <input value={pass} onChange={e=>{ setPass(e.target.value); setErr(""); }}
+              <input id="cart-login-pass" value={pass} onChange={e=>{ setPass(e.target.value); setErr(""); }}
                 type={showP?"text":"password"} placeholder="הסיסמה שלך"
-                style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:12,padding:"12px 44px 12px 14px",fontSize:14,outline:"none",direction:"ltr",fontFamily:"inherit",boxSizing:"border-box" }}
+                style={{ width:"100%",border:"1.5px solid #E5E7EB",borderRadius:12,padding:"13px 44px 13px 14px",fontSize:14,outline:"none",direction:"ltr",fontFamily:"inherit",boxSizing:"border-box" }}
                 onFocus={e=>e.target.style.borderColor=RED} onBlur={e=>e.target.style.borderColor="#E5E7EB"}
                 onKeyDown={e=>e.key==="Enter"&&doLogin()}
               />
@@ -544,37 +450,18 @@ function LoginModal({ onClose, onSuccess, onRegister }) {
               </div>
             </div>
           </div>
-        )}
 
-        {/* OTP boxes */}
-        {mode==="otp" && otpSent && (<>
-          <div style={{ display:"flex",gap:8,justifyContent:"center",direction:"ltr",marginBottom:10 }}>
-            {otp.map((d,i) => (
-              <input key={i} ref={el=>otpRefs.current[i]=el}
-                type="tel" inputMode="numeric" maxLength={1} value={d}
-                onChange={e=>onDigit(i,e.target.value)} onKeyDown={e=>onBk(i,e)} autoFocus={i===0}
-                style={{ width:44,height:54,border:`2px solid ${d?RED:"#E5E7EB"}`,borderRadius:12,fontSize:22,fontWeight:900,textAlign:"center",outline:"none",color:DARK,fontFamily:"inherit",transition:"border-color .15s",background:d?"rgba(200,16,46,.04)":"white" }}
-              />
-            ))}
+          {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:12,background:"#FEF2F2",borderRadius:10,padding:"10px 13px" }}>⚠️ {err}</div>}
+
+          <button onClick={doLogin} disabled={busy}
+            style={{ width:"100%",background:busy?`rgba(200,16,46,.5)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)",marginBottom:14 }}>
+            {busy?<><Spinner/>מתחבר...</>:"כניסה ←"}
+          </button>
+
+          <div style={{ textAlign:"center" }}>
+            <span style={{ fontSize:12,color:GRAY }}>אין לך חשבון? </span>
+            <button onClick={onRegister} style={{ background:"none",border:"none",color:RED,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit" }}>הירשם עכשיו</button>
           </div>
-          <div style={{ textAlign:"center",marginBottom:12 }}>
-            {canR
-              ? <button onClick={doSendOTP} style={{ background:"none",border:"none",color:RED,fontSize:12,fontWeight:700,cursor:"pointer" }}>שלח שוב</button>
-              : <span style={{ color:GRAY,fontSize:11 }}>שלח שוב בעוד <b style={{ color:RED }}>{timer}</b> שניות</span>
-            }
-          </div>
-        </>)}
-
-        {err && <div style={{ color:RED,fontSize:12,fontWeight:600,marginBottom:10,background:"#FEF2F2",borderRadius:10,padding:"10px 13px" }}>⚠️ {err}</div>}
-
-        <button onClick={mode==="login"?doLogin:(otpSent?()=>{}:doSendOTP)} disabled={busy}
-          style={{ width:"100%",background:busy?`rgba(200,16,46,.5)`:`linear-gradient(135deg,${RED},#9B0B22)`,color:"white",border:"none",borderRadius:16,padding:"15px",fontSize:15,fontWeight:900,cursor:busy?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 5px 18px rgba(200,16,46,.35)",marginBottom:12 }}>
-          {busy?<><Spinner/>מתחבר...</>:mode==="login"?"כניסה ←":otpSent?"ממתין לקוד...":"שלח קוד לאימייל ←"}
-        </button>
-
-        <div style={{ textAlign:"center",marginTop:8 }}>
-          <span style={{ fontSize:12,color:GRAY }}>אין לך חשבון? </span>
-          <button onClick={onRegister} style={{ background:"none",border:"none",color:RED,fontSize:12,fontWeight:700,cursor:"pointer" }}>הירשם עכשיו</button>
         </div>
         <style>{`@keyframes cpSheet{from{transform:translateY(100%)}to{transform:translateY(0)}}*{box-sizing:border-box}`}</style>
       </div>

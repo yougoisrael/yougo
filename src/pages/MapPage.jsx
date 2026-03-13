@@ -4,69 +4,100 @@ import BottomNav from "../components/BottomNav";
 
 const C = { red: "#C8102E", dark: "#111827", gray: "#6B7280" };
 
+// GitHub raw URLs للـ GeoJSON الحقيقي
+const BASE = "https://raw.githubusercontent.com/idoivri/israel-municipalities-polygons/master";
+
+// אסמאء المجلدات من قائمة GitHub الحقيقية
+// النمط: اسم_المجلد/اسم_المجلد.geojson
 const AREAS = [
   {
-    id:      "rame",
-    name:    "ראמה - סגור - בית ג׳ן",
-    emoji:   "🏡",
-    lat:     32.9386, lng: 35.3731,
-    // Nominatim OSM IDs לכל כפר — relation IDs מ-OpenStreetMap
-    osmIds:  ["R7677399", "R7677395", "R7677389"], // ראמה, סגור, בית ג'ן
+    id: "rame", name: "ראמה - סגור - בית ג׳ן", emoji: "🏡",
+    lat: 32.946, lng: 35.378,
+    // bet_jan شفناه بالقائمة، rameh و sajur نمط واضح
+    files: [
+      "rameh/rameh.geojson",
+      "sajur/sajur.geojson",
+      "bet_jan/bet_jan.geojson",
+    ],
   },
   {
-    id:      "karmiel",
-    name:    "כרמיאל - נחף - מג׳ד - שזור",
-    emoji:   "🏙️",
-    lat:     32.9200, lng: 35.3050,
-    osmIds:  ["R1389220", "R7677393", "R7677391", "R7677397"], // כרמיאל, נחף, מג'ד, שזור
+    id: "karmiel", name: "כרמיאל - נחף - מג׳ד - שזור", emoji: "🏙️",
+    lat: 32.920, lng: 35.300,
+    // karmiel شغال ✅، الباقي بنفس النمط
+    files: [
+      "karmiel/karmiel.geojson",
+      "nahf/nahf.geojson",
+      "majd_al_krum/majd_al_krum.geojson",
+      "shezor/shezor.geojson",
+    ],
   },
   {
-    id:      "magar",
-    name:    "מג׳אר",
-    emoji:   "🌿",
-    lat:     32.8980, lng: 35.4028,
-    osmIds:  ["R7677401"],
+    id: "magar", name: "מג׳אר", emoji: "🌿",
+    lat: 32.899, lng: 35.403,
+    // Maghar = مغار — اسم GitHub يتبع النمط الإنجليزي
+    files: [
+      "maghar/maghar.geojson",
+    ],
   },
   {
-    id:      "peki",
-    name:    "פקיעין - כ׳ סמיע - כסרא",
-    emoji:   "🌲",
-    lat:     32.9650, lng: 35.3150,
-    osmIds:  ["R7677403", "R7677405", "R7677407"],
+    id: "peki", name: "פקיעין - כ׳ סמיע - כסרא", emoji: "🌲",
+    lat: 32.966, lng: 35.322,
+    // pekiin، kisra_sumei من Wikipedia "Kisra-Sumei" → underscore
+    files: [
+      "pekiin/pekiin.geojson",
+      "kisra_sumei/kisra_sumei.geojson",
+      "kafr_sami/kafr_sami.geojson",
+    ],
   },
 ];
 
-// Fetch real polygon from Nominatim using OSM relation ID
-async function fetchPolygon(osmId) {
-  try {
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/lookup?osm_ids=${osmId}&format=json&polygon_geojson=1`,
-      { headers: { "User-Agent": "YougoApp/1.0" } }
-    );
-    const data = await r.json();
-    const geojson = data?.[0]?.geojson;
-    if (!geojson) return null;
+// חילוץ coordinates מ-GeoJSON — כל הסוגים
+function extractCoords(geojson) {
+  if (!geojson) return [];
+  if (geojson.type === "FeatureCollection")
+    return geojson.features.flatMap(f => extractCoords(f));
+  if (geojson.type === "Feature")
+    return extractCoords(geojson.geometry);
+  const geo = geojson.geometry || geojson;
+  if (!geo?.type) return [];
+  if (geo.type === "Polygon")
+    return [geo.coordinates[0].map(([lng, lat]) => [lat, lng])];
+  if (geo.type === "MultiPolygon")
+    return geo.coordinates.flatMap(p => [p[0].map(([lng, lat]) => [lat, lng])]);
+  if (geo.type === "GeometryCollection")
+    return (geo.geometries || []).flatMap(extractCoords);
+  return [];
+}
 
-    // Extract coordinates from Polygon or MultiPolygon
-    if (geojson.type === "Polygon") {
-      return [geojson.coordinates[0].map(([lng, lat]) => [lat, lng])];
-    } else if (geojson.type === "MultiPolygon") {
-      return geojson.coordinates.map(p => p[0].map(([lng, lat]) => [lat, lng]));
-    }
-  } catch { return null; }
-  return null;
+async function fetchAreaPolygons(area) {
+  const results = await Promise.allSettled(
+    area.files.map(f =>
+      fetch(`${BASE}/${f}`)
+        .then(r => {
+          if (!r.ok) { console.warn(`❌ 404: ${f}`); return null; }
+          console.log(`✅ OK: ${f}`);
+          return r.json();
+        })
+        .catch(e => { console.warn(`❌ Error: ${f}`, e); return null; })
+    )
+  );
+  return results
+    .map(r => r.status === "fulfilled" ? r.value : null)
+    .filter(Boolean)
+    .flatMap(extractCoords)
+    .filter(c => c.length > 3);
 }
 
 export default function MapPage({ cartCount = 0, onAreaSelect }) {
-  const navigate    = useNavigate();
-  const mapRef      = useRef(null);
-  const leafRef     = useRef(null);
-  const markersRef  = useRef({});
-  const polysRef    = useRef([]);       // active drawn polygons
-  const cacheRef    = useRef({});       // cache fetched polygons
-  const [ready,     setReady]    = useState(false);
-  const [selected,  setSelected] = useState(null);
-  const [loadingPoly, setLoadingPoly] = useState(false);
+  const navigate      = useNavigate();
+  const mapRef        = useRef(null);
+  const leafRef       = useRef(null);
+  const markersRef    = useRef({});
+  const polysRef      = useRef([]);
+  const cacheRef      = useRef({});
+  const [ready,       setReady]       = useState(false);
+  const [selected,    setSelected]    = useState(null);
+  const [loading,     setLoading]     = useState(false);
 
   // ── Load Leaflet ──────────────────────────────
   useEffect(() => {
@@ -83,13 +114,13 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
     document.head.appendChild(js);
   }, []);
 
-  // ── Init map + pins ───────────────────────────
+  // ── Init map ──────────────────────────────────
   useEffect(() => {
     if (!ready || !mapRef.current || leafRef.current) return;
     const L = window.L;
 
     const map = L.map(mapRef.current, {
-      center: [32.935, 35.350],
+      center: [32.935, 35.340],
       zoom: 11,
       zoomControl: false,
       attributionControl: false,
@@ -105,26 +136,12 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
 
     AREAS.forEach(area => {
       const marker = L.marker([area.lat, area.lng], {
-        icon: L.divIcon({
-          html: `
-            <div class="yg-pin" id="pin-${area.id}">
-              <div class="yg-pin-circle">
-                <svg width="22" height="22" viewBox="0 0 24 24">
-                  <path fill="${C.red}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                </svg>
-              </div>
-              <div class="yg-pin-tail"></div>
-            </div>
-          `,
-          className:  "",
-          iconSize:   [44, 56],
-          iconAnchor: [22, 56],
-        }),
+        icon: makeIcon(area.id, false, L),
       }).addTo(map);
 
       marker.on("click", e => {
         L.DomEvent.stopPropagation(e);
-        handleTap(area, map, L);
+        onTap(area, map, L);
       });
 
       markersRef.current[area.id] = marker;
@@ -134,112 +151,105 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
 
     return () => {
       map.remove();
-      leafRef.current  = null;
+      leafRef.current    = null;
       markersRef.current = {};
       polysRef.current   = [];
-      cacheRef.current   = {};
     };
   }, [ready]);
 
-  async function handleTap(area, map, L) {
-    // Reset all pins
-    AREAS.forEach(a => setPinStyle(a.id, false));
-    // Activate tapped pin
-    setPinStyle(area.id, true);
-    // Clear old polygons
-    clearPolys(map);
-    setSelected(area);
-    setLoadingPoly(true);
+  function makeIcon(id, active, L) {
+    return (L || window.L).divIcon({
+      html: `
+        <div class="yg-pin" id="pin-${id}">
+          <div class="yg-pin-circle" style="background:${active ? C.red : "white"};">
+            <svg width="22" height="22" viewBox="0 0 24 24">
+              <path fill="${active ? "white" : C.red}"
+                d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13
+                   c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5
+                   s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+          </div>
+          <div class="yg-pin-tail"></div>
+        </div>`,
+      className:  "",
+      iconSize:   [44, 56],
+      iconAnchor: [22, 56],
+    });
+  }
 
-    // Check cache first
-    let polygonData = cacheRef.current[area.id];
-
-    if (!polygonData) {
-      // Fetch all villages in parallel
-      const results = await Promise.all(
-        area.osmIds.map(id => fetchPolygon(id))
-      );
-      polygonData = results.filter(Boolean).flat();
-      if (polygonData.length) cacheRef.current[area.id] = polygonData;
-    }
-
-    setLoadingPoly(false);
-
-    if (!leafRef.current) return;
-    const currentMap = leafRef.current;
-
-    if (polygonData && polygonData.length) {
-      // Draw real polygons
-      const allBounds = [];
-      polygonData.forEach(coords => {
-        if (!coords?.length) return;
-        const poly = L.polygon(coords, {
-          color:       C.red,
-          weight:      2.5,
-          opacity:     0.9,
-          fillColor:   C.red,
-          fillOpacity: 0.18,
-          smoothFactor: 1.5,
-        }).addTo(currentMap);
-        polysRef.current.push(poly);
-        allBounds.push(...coords);
-      });
-
-      if (allBounds.length) {
-        currentMap.flyToBounds(
-          L.latLngBounds(allBounds),
-          { padding: [50, 50], maxZoom: 13, duration: 0.7 }
-        );
-      }
-    } else {
-      // Fallback: fly to center only
-      currentMap.flyTo([area.lat, area.lng], 13, { duration: 0.6 });
-    }
+  function setPinActive(id, active) {
+    const m = markersRef.current[id];
+    if (m && window.L) m.setIcon(makeIcon(id, active, window.L));
   }
 
   function clearPolys(map) {
-    const m = map || leafRef.current;
-    polysRef.current.forEach(p => m?.removeLayer(p));
+    polysRef.current.forEach(p => map?.removeLayer(p));
     polysRef.current = [];
   }
 
   function deselect(map) {
     clearPolys(map);
-    AREAS.forEach(a => setPinStyle(a.id, false));
+    AREAS.forEach(a => setPinActive(a.id, false));
     setSelected(null);
-    setLoadingPoly(false);
+    setLoading(false);
   }
 
-  function setPinStyle(id, active) {
-    const el     = document.getElementById(`pin-${id}`);
-    if (!el) return;
-    const circle = el.querySelector(".yg-pin-circle");
-    const svg    = el.querySelector("path");
-    if (circle) {
-      circle.style.background  = active ? C.red : "white";
-      circle.style.boxShadow   = active
-        ? `0 4px 16px rgba(200,16,46,0.55)`
-        : `0 3px 12px rgba(200,16,46,0.25)`;
-      circle.style.transform   = active ? "scale(1.22)" : "scale(1)";
+  async function onTap(area, map, L) {
+    // Immediate UI
+    AREAS.forEach(a => setPinActive(a.id, false));
+    setPinActive(area.id, true);
+    clearPolys(map);
+    setSelected(area);
+    setLoading(true);
+
+    // Cache check
+    let coords = cacheRef.current[area.id];
+    if (!coords) {
+      coords = await fetchAreaPolygons(area);
+      if (coords.length) cacheRef.current[area.id] = coords;
     }
-    if (svg) svg.setAttribute("fill", active ? "white" : C.red);
+
+    setLoading(false);
+    if (!leafRef.current) return;
+    const m = leafRef.current;
+
+    if (coords.length) {
+      const allPts = [];
+      coords.forEach(c => {
+        const poly = L.polygon(c, {
+          color:        C.red,
+          weight:       2.5,
+          opacity:      0.9,
+          fillColor:    C.red,
+          fillOpacity:  0.20,
+          smoothFactor: 1,
+        }).addTo(m);
+        polysRef.current.push(poly);
+        allPts.push(...c);
+      });
+      m.flyToBounds(L.latLngBounds(allPts), {
+        padding: [60, 60], maxZoom: 14, duration: 0.7,
+      });
+    } else {
+      // Fallback — center only
+      m.flyTo([area.lat, area.lng], 13, { duration: 0.6 });
+    }
   }
 
   return (
     <div style={{ position:"fixed", inset:0, fontFamily:"Arial,sans-serif", direction:"rtl" }}>
       <style>{`
         @keyframes spin    { to { transform:rotate(360deg); } }
-        @keyframes slideUp { from { transform:translateY(110%);opacity:0; } to { transform:translateY(0);opacity:1; } }
-        @keyframes pinPop  { 0%{transform:scale(0.4)opacity:0} 80%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+        @keyframes slideUp { from{transform:translateY(110%);opacity:0}to{transform:translateY(0);opacity:1} }
         .leaflet-container { background:#f0ece4!important; }
         .mBtn:active { transform:scale(0.91); }
-        .yg-pin { display:flex;flex-direction:column;align-items:center;animation:pinPop 0.3s ease; }
+        .yg-pin { display:flex;flex-direction:column;align-items:center; }
         .yg-pin-circle {
           width:44px;height:44px;border-radius:50%;
-          background:white;border:2.5px solid ${C.red};
+          border:2.5px solid ${C.red};
           display:flex;align-items:center;justify-content:center;
-          box-shadow:0 3px 12px rgba(200,16,46,0.25);
-          transition:all 0.22s ease;cursor:pointer;
+          box-shadow:0 3px 14px rgba(200,16,46,0.35);
+          transition:all 0.2s ease;cursor:pointer;
         }
         .yg-pin-tail {
           width:0;height:0;
@@ -250,12 +260,11 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
         }
       `}</style>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{
         position:"absolute",top:0,left:0,right:0,zIndex:1000,
         background:"white",boxShadow:"0 1px 0 rgba(0,0,0,0.07)",
-        padding:"12px 16px",
-        display:"flex",alignItems:"center",gap:12,
+        padding:"12px 16px",display:"flex",alignItems:"center",gap:12,
       }}>
         <button className="mBtn" onClick={() => navigate(-1)} style={{
           background:"#F3F4F6",border:"none",borderRadius:12,
@@ -269,27 +278,24 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
         </button>
         <div style={{flex:1,textAlign:"center"}}>
           <div style={{fontSize:16,fontWeight:900,color:C.dark}}>בחר אזור משלוח</div>
-          <div style={{fontSize:11,marginTop:1,transition:"color 0.25s",
-            fontWeight:selected?800:400,
-            color:selected?C.red:C.gray,
+          <div style={{fontSize:11,marginTop:1,
+            color:loading?C.red:selected?C.red:C.gray,
+            fontWeight:selected?800:400,transition:"color 0.25s",
           }}>
-            {selected
-              ? loadingPoly ? "טוען גבולות..." : `✓ ${selected.name}`
-              : "לחץ על סמן האזור שלך"}
+            {loading ? "⏳ טוען גבולות..." : selected ? `✓ ${selected.name}` : "לחץ על סמן האזור שלך"}
           </div>
         </div>
         <div style={{width:38}}/>
       </div>
 
-      {/* ── Map ── */}
+      {/* Map */}
       <div ref={mapRef} style={{
-        position:"absolute",
-        top:62,left:0,right:0,
-        bottom:selected ? 162 : 80,
+        position:"absolute",top:62,left:0,right:0,
+        bottom:selected?162:80,
         transition:"bottom 0.35s cubic-bezier(0.34,1.1,0.64,1)",
       }}/>
 
-      {/* ── Leaflet loading ── */}
+      {/* Leaflet loading */}
       {!ready && (
         <div style={{
           position:"absolute",inset:0,zIndex:600,background:"white",
@@ -299,14 +305,13 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
           <div style={{
             width:44,height:44,borderRadius:"50%",
             border:"3px solid rgba(200,16,46,0.15)",
-            borderTopColor:C.red,
-            animation:"spin 0.8s linear infinite",
+            borderTopColor:C.red,animation:"spin 0.8s linear infinite",
           }}/>
           <div style={{color:C.gray,fontSize:13,fontWeight:700}}>טוען מפה...</div>
         </div>
       )}
 
-      {/* ── Zoom ── */}
+      {/* Zoom */}
       <div style={{
         position:"absolute",left:12,top:"50%",
         transform:"translateY(-50%)",zIndex:900,
@@ -326,7 +331,7 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
         ))}
       </div>
 
-      {/* ── Selected card ── */}
+      {/* Selected card */}
       {selected && (
         <div style={{
           position:"absolute",bottom:80,left:0,right:0,zIndex:1000,
@@ -336,7 +341,6 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
           animation:"slideUp 0.32s cubic-bezier(0.34,1.1,0.64,1)",
         }}>
           <div style={{width:36,height:4,background:"#E5E7EB",borderRadius:2,margin:"0 auto 14px"}}/>
-
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
             <div style={{
               width:48,height:48,borderRadius:14,
@@ -347,10 +351,10 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
             }}>{selected.emoji}</div>
             <div style={{flex:1}}>
               <div style={{fontSize:16,fontWeight:900,color:C.dark}}>{selected.name}</div>
-              <div style={{fontSize:12,marginTop:2,
-                color:loadingPoly?"#f59e0b":"#16a34a",fontWeight:700,
+              <div style={{fontSize:12,marginTop:2,fontWeight:700,
+                color:loading?"#f59e0b":"#16a34a",
               }}>
-                {loadingPoly ? "⏳ טוען גבולות אזור..." : "✓ אזור פעיל • משלוח זמין"}
+                {loading ? "⏳ טוען גבולות אזור..." : "✓ אזור פעיל • משלוח זמין"}
               </div>
             </div>
             <button className="mBtn" onClick={()=>deselect(leafRef.current)} style={{
@@ -360,25 +364,23 @@ export default function MapPage({ cartCount = 0, onAreaSelect }) {
               fontSize:14,color:C.gray,
             }}>✕</button>
           </div>
-
           <button className="mBtn"
-            onClick={()=>{ onAreaSelect?.(selected); navigate("/"); }}
+            onClick={()=>{ if(!loading){ onAreaSelect?.(selected); navigate("/"); } }}
             style={{
               width:"100%",
-              background:loadingPoly
-                ? "#9CA3AF"
-                : `linear-gradient(135deg,${C.red},#a00020)`,
+              background:loading?"#D1D5DB":`linear-gradient(135deg,${C.red},#a00020)`,
               border:"none",borderRadius:16,padding:"15px",
-              color:"white",fontSize:15,fontWeight:900,cursor:"pointer",
-              boxShadow:loadingPoly?"none":"0 4px 18px rgba(200,16,46,0.35)",
-              transition:"background 0.3s",
+              color:"white",fontSize:15,fontWeight:900,
+              cursor:loading?"not-allowed":"pointer",
+              boxShadow:loading?"none":"0 4px 18px rgba(200,16,46,0.35)",
+              transition:"all 0.3s",
             }}>
-            {loadingPoly ? "⏳ רגע..." : `בחר ${selected.name} ←`}
+            {loading ? "⏳ רגע..." : `בחר ${selected.name} ←`}
           </button>
         </div>
       )}
 
-      {/* ── BottomNav ── */}
+      {/* BottomNav */}
       <div style={{position:"absolute",bottom:0,left:0,right:0,zIndex:999}}>
         <BottomNav cartCount={cartCount}/>
       </div>

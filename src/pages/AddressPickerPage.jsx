@@ -111,7 +111,7 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, zones: zonesOverride, cartCoun
         setBusy(false);
         setGpsErr(e.code === 1 ? "אפשר גישה למיקום בהגדרות הדפדפן" : "לא ניתן לאתר מיקום — בחר ידנית");
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
     );
   }
 
@@ -482,7 +482,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
         /* Do NOT flyTo — user sees all 3 zones first */
       },
       () => setGpsErr(true),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
     );
   }
 
@@ -562,7 +562,7 @@ function MapPicker({ onBack, onSaved, cartCount = 0 }) {
         setTimeout(() => selectZone(zone, mapRef.current, window.L), 900);
       },
       () => setGpsErr(true),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
     );
   }
 

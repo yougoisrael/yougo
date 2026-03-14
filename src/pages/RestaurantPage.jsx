@@ -165,7 +165,6 @@ function ItemPopup({ item, qty, onAdd, onRem, onClose }) {
             </button>
           )}
         </div>
-      </div>
     </BottomSheet>
   );
 }
@@ -200,7 +199,7 @@ function MenuCard({ item, qty, onOpen, onQuickAdd, onRem, delay, coverColor }) {
       }}>
         {item.image_url
           ? <img src={item.image_url} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt={item.name}/>
-          : <span style={{ fontSize:52 }}>{emoji}</span>
+          : <CategoryIcon cat={item.category} isHot={item.is_hot} s={52} c={bg}/>
         }
         {item.is_hot && (
           <div style={{ position:"absolute", top:7, right:7, background:"#FEF2F2", color:"#EF4444", fontSize:9, fontWeight:800, padding:"2px 7px", borderRadius:20, display:"flex", alignItems:"center", gap:2 }}><IcoHot s={10} c="#EF4444"/></div>

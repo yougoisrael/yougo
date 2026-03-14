@@ -375,28 +375,40 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
 
   // ── send OTP ─────────────────────────────────────────────────
   const doSendOTP = async () => {
+    if(!loginEmail) return;
     setError(""); setMode("submitting");
     const {error:e} = await supabase.auth.signInWithOtp({
-      email:loginEmail, options:{shouldCreateUser:false}
+      email: loginEmail,
+      options: { shouldCreateUser: false }
     });
     if(e){
       setMode("login");
-      setError(e.status===429?"יותר מדי בקשות — המתן דקה":"לא ניתן לשלוח קוד");
+      if(e.status===429 || e.message?.includes("rate"))
+        setError("יותר מדי בקשות — המתן דקה");
+      else if(e.message?.includes("not found") || e.message?.includes("No user"))
+        setError("לא נמצא חשבון עם כתובת זו");
+      else
+        setError("שגיאה בשליחת הקוד: " + (e.message||"נסה שוב"));
       return;
     }
-    setMasked(maskEmail(loginEmail)); setOtp(""); setMode("otp_sent");
+    setMasked(maskEmail(loginEmail));
+    setOtp("");
+    setMode("otp_sent");
   };
 
   // ── forgot password ──────────────────────────────────────────
   const doForgot = async () => {
-    if(!loginEmail||forgotSending) return;
+    if(!loginEmail || forgotSending) return;
     setForgotSending(true); setError("");
-    const {error:e} = await supabase.auth.resetPasswordForEmail(loginEmail,{
-      redirectTo: window.location.origin,
+    const {error:e} = await supabase.auth.resetPasswordForEmail(loginEmail, {
+      redirectTo: window.location.origin + "/#/reset-password",
     });
     setForgotSending(false);
-    if(e){ setError("שגיאה — נסה שוב"); }
-    else  { setForgotSent(true); }
+    if(e){
+      setError("שגיאה בשליחת הקישור: " + (e.message||"נסה שוב"));
+    } else {
+      setForgotSent(true);
+    }
   };
 
   // ── verify OTP ───────────────────────────────────────────────
@@ -404,10 +416,20 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
     if(code.length!==6) return;
     setMode("otp_verify");
     const {data,error:e} = await supabase.auth.verifyOtp({
-      email:loginEmail, token:code, type:"email"
+      email: loginEmail,
+      token: code,
+      type: "email"
     });
-    if(e){setMode("otp_sent");setOtp("");setError("הקוד שגוי — נסה שוב");return;}
-    _done(data.user,data.user?.user_metadata||{});
+    if(e){
+      setMode("otp_sent");
+      setOtp("");
+      setError("הקוד שגוי או פג תוקפו — נסה שוב");
+      return;
+    }
+    const u = data.user;
+    const m = u?.user_metadata || {};
+    // if no metadata firstName → just do basic done
+    _done(u, m.firstName ? m : { firstName: u?.email?.split("@")[0]||"", lastName:"", phone:"", gender:"", age:"" });
   };
 
   const handleOtpChange = val => {
@@ -561,49 +583,88 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
         ══════════════════════════════════════ */}
         {isOTP && (
           <div className="_ash_in">
+            {/* Email display card */}
             <div style={{
-              background:"#FFFBEB", border:"1px solid #FDE68A",
-              borderRadius:14, padding:"14px 16px", marginBottom:20, textAlign:"center",
+              background:"linear-gradient(135deg,#EFF6FF,#DBEAFE)",
+              border:"1.5px solid #93C5FD",
+              borderRadius:16, padding:"16px", marginBottom:24,
+              textAlign:"center",
             }}>
-              <div style={{fontSize:11,fontWeight:700,color:"#92400E",marginBottom:4}}>קוד נשלח אל</div>
-              <div style={{fontFamily:"monospace",fontSize:15,fontWeight:700,color:DK}}>{maskedEmail}</div>
+              <div style={{
+                width:48, height:48, borderRadius:"50%",
+                background:"#2563EB", margin:"0 auto 12px",
+                display:"flex", alignItems:"center", justifyContent:"center",
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <rect x="2" y="4" width="20" height="16" rx="2" stroke="white" strokeWidth="2"/>
+                  <path d="M2 7l10 7 10-7" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div style={{fontSize:12,fontWeight:700,color:"#1E40AF",marginBottom:4}}>
+                קוד 6 ספרות נשלח אל
+              </div>
+              <div style={{fontFamily:"monospace",fontSize:16,fontWeight:900,color:"#1E3A8A",letterSpacing:1}}>
+                {maskedEmail}
+              </div>
+              <div style={{fontSize:11,color:"#3B82F6",marginTop:6}}>
+                בדוק את תיבת הדואר שלך
+              </div>
+            </div>
+
+            <div style={{textAlign:"center",fontSize:14,fontWeight:700,color:DK,marginBottom:4}}>
+              הזן את הקוד
             </div>
 
             <OTPBoxes value={otp} onChange={handleOtpChange}
               disabled={mode==="otp_verify"} error={!!error} />
 
             {mode==="otp_verify" && (
-              <div style={{display:"flex",justifyContent:"center",padding:12}}>
-                <Spinner s={28} c={R}/>
+              <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,padding:12,color:GR,fontSize:13}}>
+                <Spinner s={20} c={R}/> מאמת...
               </div>
             )}
 
-            <div style={{textAlign:"center",marginTop:12}}>
-              {canResend
-                ? <button onClick={doSendOTP} style={{
-                    background:"none",border:"none",color:R,
-                    fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                  }}>שלח קוד חדש</button>
-                : <div style={{color:GR,fontSize:13}}>
-                    שלח שוב בעוד <b style={{color:R}}>{otpTimer}</b> שניות
-                  </div>
-              }
+            {/* Timer / resend */}
+            <div style={{textAlign:"center",marginTop:16}}>
+              {canResend ? (
+                <button onClick={doSendOTP} style={{
+                  background:"none", border:`1.5px solid ${R}`,
+                  borderRadius:10, padding:"8px 20px",
+                  color:R, fontSize:13, fontWeight:700,
+                  cursor:"pointer", fontFamily:"inherit",
+                }}>
+                  🔄 שלח קוד חדש
+                </button>
+              ) : (
+                <div style={{color:GR,fontSize:13}}>
+                  שלח שוב בעוד{" "}
+                  <span style={{
+                    display:"inline-block", minWidth:28,
+                    background:RB, borderRadius:6, padding:"2px 6px",
+                    color:R, fontWeight:900, fontSize:14,
+                  }}>{otpTimer}</span>
+                  {" "}שניות
+                </div>
+              )}
             </div>
 
             <div style={{
-              marginTop:20, background:"#EFF6FF", border:"1px solid #BFDBFE",
-              borderRadius:12, padding:"12px 16px", fontSize:12, color:"#1E40AF", textAlign:"center",
+              marginTop:16, background:"#F0FDF4", border:"1px solid #BBF7D0",
+              borderRadius:12, padding:"10px 14px",
+              fontSize:11, color:"#166534", textAlign:"center",
             }}>
-              🔒 הקוד תקף ל-5 דקות
+              🔒 הקוד תקף ל-5 דקות • לא שיתוף עם אף אחד
             </div>
 
             <button onClick={()=>{setMode("login");setOtp("");setError("");}}
               style={{
-                width:"100%",background:"none",border:"none",
-                color:GR,fontSize:13,cursor:"pointer",
-                marginTop:16,fontFamily:"inherit",
+                width:"100%", background:"none",
+                border:`1.5px solid ${BD}`, borderRadius:12,
+                padding:"11px", color:GR, fontSize:13,
+                cursor:"pointer", marginTop:12,
+                fontFamily:"inherit", fontWeight:600,
               }}>
-              ← חזור
+              ← חזור לסיסמה
             </button>
           </div>
         )}
@@ -652,25 +713,55 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
                   right={<EyeBtn show={showPw} onToggle={()=>setShowPw(p=>!p)}/>}
                 />
 
-                {/* forgot + OTP row */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                {/* forgot + OTP row — redesigned */}
+                <div style={{marginBottom:16}}>
+                  {/* OTP button */}
                   <button onClick={doSendOTP} disabled={isBusy} style={{
-                    background:"none",border:"none",color:R,
-                    fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                    display:"flex",alignItems:"center",gap:5,
+                    width:"100%", padding:"11px 14px",
+                    background:"#EFF6FF", border:"1.5px solid #BFDBFE",
+                    borderRadius:12, cursor:isBusy?"not-allowed":"pointer",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    gap:8, fontFamily:"inherit", marginBottom:8,
+                    color:"#1E40AF", fontSize:13, fontWeight:700,
+                    transition:"all .15s", opacity:isBusy?.6:1,
                   }}>
-                    🔢 כניסה דרך קוד
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#1E40AF" strokeWidth="2"/>
+                      <path d="M2 7l10 7 10-7" stroke="#1E40AF" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    כניסה דרך קוד לאימייל
                   </button>
-                  {forgotSent
-                    ? <div style={{fontSize:11,color:GN,fontWeight:700}}>✓ קישור נשלח לאימייל</div>
-                    : <button onClick={doForgot} disabled={forgotSending} style={{
-                        background:"none",border:"none",color:GR,
-                        fontSize:12,cursor:"pointer",fontFamily:"inherit",
-                        opacity:forgotSending?.6:1,
-                      }}>
-                        {forgotSending?"שולח...":"שכחת סיסמה?"}
-                      </button>
-                  }
+
+                  {/* Forgot password */}
+                  {forgotSent ? (
+                    <div style={{
+                      display:"flex", alignItems:"center", gap:8,
+                      background:"#F0FDF4", border:"1.5px solid #BBF7D0",
+                      borderRadius:12, padding:"11px 14px",
+                      fontSize:13, fontWeight:700, color:"#16A34A",
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path d="M5 13l4 4L19 7" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      קישור איפוס נשלח ל-{maskEmail(loginEmail)}
+                    </div>
+                  ) : (
+                    <button onClick={doForgot} disabled={forgotSending} style={{
+                      width:"100%", padding:"11px 14px",
+                      background:"#FFF7ED", border:"1.5px solid #FED7AA",
+                      borderRadius:12, cursor:forgotSending?"not-allowed":"pointer",
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      gap:8, fontFamily:"inherit",
+                      color:"#C2410C", fontSize:13, fontWeight:700,
+                      transition:"all .15s", opacity:forgotSending?.6:1,
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="#C2410C" strokeWidth="2"/>
+                        <path d="M12 8v4M12 16h.01" stroke="#C2410C" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                      {forgotSending ? "שולח קישור..." : "שכחתי סיסמה — שלח קישור לאימייל"}
+                    </button>
+                  )}
                 </div>
 
                 <BigBtn onClick={doLogin} loading={isBusy} disabled={!password}>

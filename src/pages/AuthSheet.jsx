@@ -27,6 +27,8 @@ function loadHcap() {
 async function getCaptchaToken() {
   if (!HCAP_KEY) return undefined;
   return new Promise(resolve => {
+    // Timeout safety — never hang more than 8 seconds
+    const timeout = setTimeout(() => resolve(undefined), 8000);
     function tryExec() {
       if (!window.hcaptcha) { setTimeout(tryExec, 200); return; }
       const el = document.createElement("div");
@@ -35,12 +37,12 @@ async function getCaptchaToken() {
       try {
         const wid = window.hcaptcha.render(el, {
           sitekey: HCAP_KEY, size: "invisible",
-          callback:           t => { try{document.body.removeChild(el);}catch{} resolve(t); },
-          "error-callback":   () => { try{document.body.removeChild(el);}catch{} resolve(undefined); },
-          "expired-callback": () => { try{document.body.removeChild(el);}catch{} resolve(undefined); },
+          callback:           t => { clearTimeout(timeout); try{document.body.removeChild(el);}catch{} resolve(t); },
+          "error-callback":   () => { clearTimeout(timeout); try{document.body.removeChild(el);}catch{} resolve(undefined); },
+          "expired-callback": () => { clearTimeout(timeout); try{document.body.removeChild(el);}catch{} resolve(undefined); },
         });
         window.hcaptcha.execute(wid);
-      } catch { try{document.body.removeChild(el);}catch{} resolve(undefined); }
+      } catch { clearTimeout(timeout); try{document.body.removeChild(el);}catch{} resolve(undefined); }
     }
     tryExec();
   });
@@ -387,7 +389,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
         });
         // if RPC missing or error → fallback to register mode (safe default)
         if(rpcErr){ setMode("register"); return; }
-        if(found){ setLoginEmail(found); setMode("login"); }
+        if(found){ setLoginEmail((found||"").trim().toLowerCase()); setMode("login"); }
         else      { setMode("register"); }
       } catch {
         setMode("register"); // safe fallback — never block user
@@ -400,7 +402,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
     if(!password){setFieldErrs({pw:"נא להזין סיסמה"});return;}
     setError(""); setFieldErrs({}); setMode("submitting");
     const captchaToken1 = await getCaptchaToken();
-    const {data,error:e} = await supabase.auth.signInWithPassword({email:loginEmail,password,...(captchaToken1&&{options:{captchaToken:captchaToken1}})});
+    const {data,error:e} = await supabase.auth.signInWithPassword({email:loginEmail.trim().toLowerCase(),password,...(captchaToken1&&{options:{captchaToken:captchaToken1}})});
     if(e){setMode("login");setError("הסיסמה שגויה — נסה שוב");return;}
     const m=data.user?.user_metadata||{};
     if(!m.firstName){setMode("login");setError("שגיאה בטעינת הפרופיל");return;}
@@ -413,7 +415,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
     setError(""); setMode("submitting");
     const captchaToken2 = await getCaptchaToken();
     const {error:e} = await supabase.auth.signInWithOtp({
-      email: loginEmail,
+      email: loginEmail.trim().toLowerCase(),
       options: { shouldCreateUser: false }
     });
     if(e){
@@ -435,7 +437,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
   const doForgot = async () => {
     if(!loginEmail || forgotSending) return;
     setForgotSending(true); setError("");
-    const {error:e} = await supabase.auth.resetPasswordForEmail(loginEmail, {
+    const {error:e} = await supabase.auth.resetPasswordForEmail(loginEmail.trim().toLowerCase(), {
       redirectTo: window.location.origin + "/#/reset-password",
     });
     setForgotSending(false);
@@ -451,7 +453,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
     if(code.length!==6) return;
     setMode("otp_verify");
     const {data,error:e} = await supabase.auth.verifyOtp({
-      email: loginEmail,
+      email: loginEmail.trim().toLowerCase(),
       token: code,
       type: "email"
     });

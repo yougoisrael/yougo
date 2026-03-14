@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import BottomSheet from "../components/BottomSheet";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { C, IcoBack, IcoCart, IcoPlus, IcoMinus, IcoFire, IcoPin, IcoCheck } from "../components/Icons";
 import { supabase } from "../lib/supabase";
@@ -42,26 +43,11 @@ function ItemPopup({ item, qty, onAdd, onRem, onClose }) {
   const coverColor = item.cover_color || "#C8102E";
 
   return (
-    <>
-      <div onClick={onClose} style={{
-        position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
-        zIndex:600, animation:"fadeIn 0.2s ease",
-      }}/>
-      <div style={{
-        position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-        width:"100%", maxWidth:430, background:"white",
-        borderRadius:"28px 28px 0 0", zIndex:601,
-        animation:"sheetUp 0.32s cubic-bezier(0.34,1.1,0.64,1)",
-        maxHeight:"85vh", display:"flex", flexDirection:"column", overflow:"hidden",
-      }}>
-        {/* Handle */}
-        <div style={{ display:"flex", justifyContent:"center", padding:"10px 0 0", flexShrink:0 }}>
-          <div style={{ width:36, height:4, borderRadius:2, background:"#E5E7EB" }}/>
-        </div>
-
-        {/* Close btn */}
+    <BottomSheet open={true} onClose={onClose} maxHeight="85vh" zIndex={600}>
+      {/* Close btn */}
+      <div style={{ position:"relative" }}>
         <button onClick={onClose} style={{
-          position:"absolute", top:12, left:14,
+          position:"absolute", top:2, left:14,
           background:"rgba(0,0,0,0.06)", border:"none", borderRadius:"50%",
           width:32, height:32, display:"flex", alignItems:"center",
           justifyContent:"center", cursor:"pointer", zIndex:2,
@@ -70,9 +56,8 @@ function ItemPopup({ item, qty, onAdd, onRem, onClose }) {
             <path d="M18 6L6 18M6 6l12 12" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round"/>
           </svg>
         </button>
-
-        {/* Scrollable content */}
-        <div style={{ overflowY:"auto", flex:1 }}>
+      </div>
+      <div>
 
           {/* Image / Emoji */}
           <div style={{

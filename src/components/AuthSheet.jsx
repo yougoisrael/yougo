@@ -6,6 +6,7 @@
 //  hCaptcha invisible on every auth call
 // ══════════════════════════════════════════════════
 import { useState, useEffect } from "react";
+import BottomSheet from "./BottomSheet";
 import { supabase } from "../lib/supabase";
 
 const RED  = "#C8102E";
@@ -50,9 +51,7 @@ async function getCaptchaToken() {
 
 /* ── Small UI pieces ── */
 const CSS = `
-  @keyframes sheetUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
-  @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
-  @keyframes stepIn  { from{opacity:0;transform:translateX(-18px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes stepIn { from{opacity:0;transform:translateX(-18px)} to{opacity:1;transform:translateX(0)} }
   *{box-sizing:border-box}
 `;
 
@@ -270,34 +269,15 @@ export default function AuthSheet({ onClose, onDone }) {
   return (
     <>
       <style>{CSS}</style>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{
-        position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
-        backdropFilter:"blur(4px)", zIndex:8000, animation:"fadeIn .2s",
-      }}/>
-
-      {/* Sheet */}
-      <div style={{
-        position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-        width:"100%", maxWidth:430, zIndex:8001,
-        background:"white", borderRadius:"24px 24px 0 0",
-        boxShadow:"0 -8px 40px rgba(0,0,0,0.2)",
-        padding:"0 0 env(safe-area-inset-bottom,16px)",
-        animation:"sheetUp .35s cubic-bezier(.34,1.1,.64,1)",
-        maxHeight:"92vh", overflowY:"auto",
-        fontFamily:"system-ui,Arial,sans-serif", direction:"rtl",
-      }}>
-        {/* Handle */}
-        <div style={{ display:"flex",justifyContent:"center",padding:"12px 0 4px" }}>
-          <div style={{ width:40,height:4,borderRadius:4,background:"#E5E7EB" }}/>
-        </div>
-
+      <BottomSheet open={true} onClose={onClose} maxHeight="92vh" zIndex={8000}>
+        <div style={{ fontFamily:"system-ui,Arial,sans-serif", direction:"rtl", position:"relative" }}>
         {/* Close */}
         <button onClick={onClose} style={{
-          position:"absolute", top:14, left:16,
+          position:"absolute", top:6, left:16,
           width:32,height:32,borderRadius:"50%",
           background:"#F3F4F6",border:"none",cursor:"pointer",
           display:"flex",alignItems:"center",justifyContent:"center",
+          zIndex:2,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
             <path d="M18 6L6 18M6 6l12 12" stroke={GRAY} strokeWidth="2.5" strokeLinecap="round"/>
@@ -461,7 +441,8 @@ export default function AuthSheet({ onClose, onDone }) {
             בהמשך אתה מסכים ל<span style={{color:RED,fontWeight:700}}>תנאי השימוש</span> ול<span style={{color:RED,fontWeight:700}}>מדיניות הפרטיות</span>
           </div>
         </div>
-      </div>
+        </div>
+      </BottomSheet>
     </>
   );
 }

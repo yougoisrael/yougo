@@ -14,6 +14,38 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import BottomSheet from "../components/BottomSheet";
 import { supabase } from "../lib/supabase";
 
+// ── hCaptcha (invisible) — skipped if no site key ──
+const HCAP_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY;
+function loadHcap() {
+  if (!HCAP_KEY || document.getElementById("hcap-script")) return;
+  const s = document.createElement("script");
+  s.id = "hcap-script";
+  s.src = "https://js.hcaptcha.com/1/api.js?render=explicit";
+  s.async = true;
+  document.head.appendChild(s);
+}
+async function getCaptchaToken() {
+  if (!HCAP_KEY) return undefined;
+  return new Promise(resolve => {
+    function tryExec() {
+      if (!window.hcaptcha) { setTimeout(tryExec, 200); return; }
+      const el = document.createElement("div");
+      el.style.display = "none";
+      document.body.appendChild(el);
+      try {
+        const wid = window.hcaptcha.render(el, {
+          sitekey: HCAP_KEY, size: "invisible",
+          callback:           t => { try{document.body.removeChild(el);}catch{} resolve(t); },
+          "error-callback":   () => { try{document.body.removeChild(el);}catch{} resolve(undefined); },
+          "expired-callback": () => { try{document.body.removeChild(el);}catch{} resolve(undefined); },
+        });
+        window.hcaptcha.execute(wid);
+      } catch { try{document.body.removeChild(el);}catch{} resolve(undefined); }
+    }
+    tryExec();
+  });
+}
+
 // ─── Colors ─────────────────────────────────────────────────────
 const R  = "#C8102E";
 const RD = "#8B0B1E";
@@ -323,6 +355,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
     if (mode!=="otp_sent") return;
     setOtpTimer(60); setCanResend(false);
     timerRef.current = setInterval(()=>{
+    loadHcap();
       setOtpTimer(t=>{
         if(t<=1){clearInterval(timerRef.current);setCanResend(true);return 0;}
         return t-1;
@@ -366,7 +399,8 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
   const doLogin = async () => {
     if(!password){setFieldErrs({pw:"נא להזין סיסמה"});return;}
     setError(""); setFieldErrs({}); setMode("submitting");
-    const {data,error:e} = await supabase.auth.signInWithPassword({email:loginEmail,password});
+    const captchaToken1 = await getCaptchaToken();
+    const {data,error:e} = await supabase.auth.signInWithPassword({email:loginEmail,password,...(captchaToken1&&{options:{captchaToken:captchaToken1}})});
     if(e){setMode("login");setError("הסיסמה שגויה — נסה שוב");return;}
     const m=data.user?.user_metadata||{};
     if(!m.firstName){setMode("login");setError("שגיאה בטעינת הפרופיל");return;}
@@ -377,6 +411,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
   const doSendOTP = async () => {
     if(!loginEmail) return;
     setError(""); setMode("submitting");
+    const captchaToken2 = await getCaptchaToken();
     const {error:e} = await supabase.auth.signInWithOtp({
       email: loginEmail,
       options: { shouldCreateUser: false }
@@ -476,6 +511,7 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
 
     // ── signUp ──────────────────────────────────────────────────
     const meta = {firstName:firstName.trim(), lastName:lastName.trim(), phone:intl, gender, age};
+    const captchaToken3 = await getCaptchaToken();
     const {data:signUpData, error:signUpErr} = await supabase.auth.signUp({
       email: emailFinal,
       password: regPass,

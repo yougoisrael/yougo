@@ -349,14 +349,15 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
     debounceRef.current = setTimeout(async()=>{
       try {
         const {local,intl,intlNoPlus,raw} = normalizePhone(val);
-        // FIX: use RPC — direct query blocked by RLS for anonymous users
-        const {data:found} = await supabase.rpc("get_email_by_phone", {
+        const {data:found, error:rpcErr} = await supabase.rpc("get_email_by_phone", {
           p1: intl, p2: local, p3: intlNoPlus, p4: raw
         });
+        // if RPC missing or error → fallback to register mode (safe default)
+        if(rpcErr){ setMode("register"); return; }
         if(found){ setLoginEmail(found); setMode("login"); }
         else      { setMode("register"); }
       } catch {
-        setMode("idle"); setError("שגיאת חיבור — נסה שוב");
+        setMode("register"); // safe fallback — never block user
       }
     },450);
   },[mode]);
@@ -417,56 +418,90 @@ export default function AuthSheet({ open, onClose, onDone, onBusiness }) {
   // ── register ─────────────────────────────────────────────────
   const doRegister = async () => {
     const errs={};
-    if(!isValidEmail(regEmail))   errs.regEmail="אימייל לא תקין";
+    if(!isValidEmail(regEmail))      errs.regEmail="אימייל לא תקין";
     const pe=pwValidate(regPass); if(pe) errs.regPass=pe;
-    if(regPass!==regPass2)        errs.regPass2="הסיסמאות אינן תואמות";
-    if(!firstName.trim())         errs.firstName="שדה חובה";
-    if(!lastName.trim())          errs.lastName="שדה חובה";
-    if(!gender)                   errs.gender="יש לבחור מגדר";
+    if(regPass!==regPass2)           errs.regPass2="הסיסמאות אינן תואמות";
+    if(!firstName.trim())            errs.firstName="שדה חובה";
+    if(!lastName.trim())             errs.lastName="שדה חובה";
+    if(!gender)                      errs.gender="יש לבחור מגדר";
     const a=parseInt(age);
-    if(!age||isNaN(a)||a<13||a>100) errs.age="גיל לא תקין (13–100)";
-    if(Object.keys(errs).length){setFieldErrs(errs);return;}
+    if(!age||isNaN(a)||a<13||a>100)  errs.age="גיל לא תקין (13–100)";
+    if(Object.keys(errs).length){ setFieldErrs(errs); return; }
     setError(""); setFieldErrs({}); setMode("submitting");
 
-    // CRITICAL FIX: RLS blocks direct table queries for anonymous users.
-    // Use RPC function that runs as SECURITY DEFINER (bypasses RLS safely).
     const {local,intl,intlNoPlus,raw} = normalizePhone(phone);
-    const {data:phoneCheck} = await supabase.rpc("check_phone_exists", {
-      p1: intl, p2: local, p3: intlNoPlus, p4: raw
-    });
-    if(phoneCheck){setMode("register");setFieldErrs({regPhone:"מספר הטלפון כבר רשום"});return;}
+    const emailFinal = regEmail.trim().toLowerCase();
 
-    // check email uniqueness via RPC too
-    const emailFinal=regEmail.trim().toLowerCase();
-    const {data:emailCheck} = await supabase.rpc("check_email_exists", { em: emailFinal });
-    if(emailCheck){setMode("register");setFieldErrs({regEmail:"האימייל כבר רשום — נסה להתחבר"});return;}
-
-    const meta={firstName:firstName.trim(),lastName:lastName.trim(),phone:intl,gender,age};
-    const {data,error:e} = await supabase.auth.signUp({
-      email:emailFinal, password:regPass, options:{data:meta}
+    // ── check phone uniqueness via RPC ──────────────────────────
+    const {data:phoneExists, error:phoneErr} = await supabase.rpc("check_phone_exists", {
+      p1:intl, p2:local, p3:intlNoPlus, p4:raw
     });
-    if(e){
+    if(phoneErr){ console.warn("check_phone_exists error:", phoneErr.message); }
+    if(phoneExists){
       setMode("register");
-      setError(e.message?.toLowerCase().includes("already")
+      setFieldErrs({regPhone:"מספר הטלפון כבר רשום לחשבון אחר"});
+      return;
+    }
+
+    // ── check email uniqueness via RPC ──────────────────────────
+    const {data:emailExists, error:emailErr} = await supabase.rpc("check_email_exists", { em: emailFinal });
+    if(emailErr){ console.warn("check_email_exists error:", emailErr.message); }
+    if(emailExists){
+      setMode("register");
+      setFieldErrs({regEmail:"האימייל כבר רשום — נסה להתחבר"});
+      return;
+    }
+
+    // ── signUp ──────────────────────────────────────────────────
+    const meta = {firstName:firstName.trim(), lastName:lastName.trim(), phone:intl, gender, age};
+    const {data:signUpData, error:signUpErr} = await supabase.auth.signUp({
+      email: emailFinal,
+      password: regPass,
+      options: { data: meta },
+    });
+
+    if(signUpErr){
+      setMode("register");
+      setError(signUpErr.message?.toLowerCase().includes("already")
         ? "האימייל כבר רשום — נסה להתחבר"
-        : "שגיאה: "+e.message);
+        : "שגיאה: " + signUpErr.message);
       return;
     }
 
-    // CRITICAL FIX: if no session → email confirmation required
-    if(!data.session){
-      setMode("register");
-      setError("✉️ שלחנו לך אימייל אישור — אשר את הכתובת ואז התחבר");
-      return;
-    }
+    // ── if no session (email already in auth) → try signIn ─────
+    let finalUser = signUpData?.user;
+    let finalSession = signUpData?.session;
 
-    if(data.user){
-      await supabase.from("users").upsert({
-        id:data.user.id, name:`${meta.firstName} ${meta.lastName}`,
-        phone:meta.phone, email:emailFinal,
+    if(!finalSession){
+      // user might already exist in auth — try signing in
+      const {data:signInData, error:signInErr} = await supabase.auth.signInWithPassword({
+        email: emailFinal, password: regPass
       });
+      if(signInErr){
+        setMode("register");
+        setError("✉️ אשר את האימייל שלך ואז התחבר");
+        return;
+      }
+      finalUser = signInData.user;
+      finalSession = signInData.session;
     }
-    _done(data.user,meta);
+
+    if(!finalUser){
+      setMode("register");
+      setError("שגיאה — נסה שוב");
+      return;
+    }
+
+    // ── save to users table ─────────────────────────────────────
+    const {error:upsertErr} = await supabase.from("users").upsert({
+      id:    finalUser.id,
+      name:  `${meta.firstName} ${meta.lastName}`,
+      phone: meta.phone,
+      email: emailFinal,
+    });
+    if(upsertErr){ console.warn("upsert error:", upsertErr.message); }
+
+    _done(finalUser, meta);
   };
 
   // ── done ─────────────────────────────────────────────────────

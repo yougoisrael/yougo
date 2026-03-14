@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, IcoBack, IcoPlus, IcoMinus, IcoClose, IcoCheck, IcoShield, IcoPin, IcoCash, IcoCreditCard, IcoCart } from "../components/Icons";
-import AuthSheet from "../components/AuthSheet";
+import AuthSystem from "./AuthSystem";
 import { IcoCheckCircle, IcoChef, IcoScooter, IcoParty, IcoEmptyCart } from "../components/Icons";
 import BottomSheet from "../components/BottomSheet";
 import BottomNav from "../components/BottomNav";
@@ -858,7 +858,11 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
 
       {/* Auth Modal — unified */}
       {showAuth && (
-        <AuthSheet onClose={()=>setShowAuth(false)} onDone={handleAuthSuccess}/>
+        <AuthSystem
+          onDone={handleAuthSuccess}
+          onGuest={() => setShowAuth(false)}
+          onBusiness={() => setShowAuth(false)}
+        />
       )}
 
       {/* Location picker */}

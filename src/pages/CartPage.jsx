@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, IcoBack, IcoPlus, IcoMinus, IcoClose, IcoCheck, IcoShield, IcoPin, IcoCash, IcoCreditCard } from "../components/Icons";
-import AuthPage from "./AuthPage";
+import AuthSheet from "../components/AuthSheet";
 import BottomNav from "../components/BottomNav";
 import { supabase } from "../lib/supabase";
 
@@ -855,13 +855,7 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
 
       {/* Auth Modal — unified */}
       {showAuth && (
-        <div style={{position:"fixed",inset:0,zIndex:9999,overflowY:"auto"}}>
-          <AuthPage
-            onDone={handleAuthSuccess}
-            onGuest={()=>setShowAuth(false)}
-            onBusiness={()=>setShowAuth(false)}
-          />
-        </div>
+        <AuthSheet onClose={()=>setShowAuth(false)} onDone={handleAuthSuccess}/>
       )}
 
       {/* Location picker */}

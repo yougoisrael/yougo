@@ -13,6 +13,7 @@ import {
 import BottomNav from "../components/BottomNav";
 import { supabase } from "../lib/supabase";
 import AuthSheet from "../components/AuthSheet";
+import BottomSheet from "../components/BottomSheet";
 
 const RED  = "#C8102E";
 const DARK = "#111827";
@@ -40,23 +41,11 @@ function Spin() {
 
 function Modal({ children, onClose }) {
   return (
-    <div onClick={onClose} style={{
-      position:"fixed",inset:0,zIndex:9000,
-      background:"rgba(0,0,0,0.55)",backdropFilter:"blur(3px)",
-      display:"flex",alignItems:"flex-end",justifyContent:"center",
-      animation:"_fd .2s ease",
-    }}>
-      <div onClick={e=>e.stopPropagation()} style={{
-        width:"100%",maxWidth:430,background:"white",
-        borderRadius:"24px 24px 0 0",
-        padding:"20px 22px 36px",
-        animation:"_up .3s cubic-bezier(0.34,1.1,0.64,1)",
-        maxHeight:"90vh",overflowY:"auto",
-      }}>
-        <div style={{width:36,height:4,background:"#E5E7EB",borderRadius:2,margin:"0 auto 20px"}}/>
+    <BottomSheet open={true} onClose={onClose} maxHeight="90vh" zIndex={9000}>
+      <div style={{ padding:"20px 22px 36px" }}>
         {children}
       </div>
-    </div>
+    </BottomSheet>
   );
 }
 

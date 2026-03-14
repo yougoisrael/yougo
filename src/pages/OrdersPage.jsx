@@ -14,12 +14,14 @@ const TABS = [
   { key: "cancelled", label: "בוטלו" },
 ];
 
+// FIX: Keys now match DB enum EXACTLY (was using transliterated Hebrew — broken)
+// DB enum: 'جديد' | 'قيد التحضير' | 'في الطريق' | 'مكتمل' | 'ملغي'
 const STATUS_MAP = {
-  "جديد":           { label: "ממתין לאישור", color: "#F59E0B", icon: "🕐" },
-  "קיד אלתחד׳יר":   { label: "בהכנה",        color: "#F97316", icon: "chef" },
-  "פי אלטריק":      { label: "בדרך אליך",    color: "#8B5CF6", icon: "scooter" },
-  "מוכתמל":         { label: "הושלמה",        color: "#10B981", icon: "check" },
-  "ملغي":           { label: "בוטלה",         color: "#EF4444", icon: "❌" },
+  "جديد":           { label: "ממתין לאישור", color: "#F59E0B", icon: "🕐"      },
+  "قيد التحضير":    { label: "בהכנה",        color: "#F97316", icon: "chef"    },
+  "في الطريق":      { label: "בדרך אליך",    color: "#8B5CF6", icon: "scooter" },
+  "مكتمل":          { label: "הושלמה",        color: "#10B981", icon: "check"  },
+  "ملغي":           { label: "בוטלה",         color: "#EF4444", icon: "❌"      },
 };
 
 const ACTIVE_STATUSES = ["جديد", "قيد التحضير", "في الطريق"];

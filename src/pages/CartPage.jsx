@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, IcoBack, IcoPlus, IcoMinus, IcoClose, IcoCheck, IcoShield, IcoPin, IcoCash, IcoCreditCard, IcoCart } from "../components/Icons";
-import AuthSystem from "./AuthSystem";
+// AuthSystem removed — auth handled by AuthSheet in App.jsx
 import { IcoCheckCircle, IcoChef, IcoScooter, IcoParty, IcoEmptyCart } from "../components/Icons";
 import BottomSheet from "../components/BottomSheet";
 import BottomNav from "../components/BottomNav";
@@ -610,7 +610,6 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
   const [loading,    setLoading]    = useState(false);
   const [ordered,    setOrdered]    = useState(false);
   const [orderId,    setOrderId]    = useState(null);
-  const [showAuth,   setShowAuth]   = useState(false);
   const [showLocPicker, setShowLocPicker] = useState(false);
   const [stage, setStage] = useState(1); // 1=items, 2=checkout
   const [deliveryLoc,   setDeliveryLoc]   = useState(null);
@@ -639,7 +638,7 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
   }
 
   async function placeOrder() {
-    if (!user?.id) { setShowAuth(true); return; }
+    if (!user?.id) { onLogin?.(); return; }  // FIX: use App-level AuthSheet
     if (!deliveryLoc) { setShowLocPicker(true); return; }
     setLoading(true);
     try {
@@ -663,11 +662,6 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
     setLoading(false);
     setCart([]);
     setOrdered(true);
-  }
-
-  function handleAuthSuccess(u) {
-    setShowAuth(false);
-    onLogin?.(u);
   }
 
   if (ordered) return <TrackingScreen orderId={orderId} total={total} navigate={navigate} />;
@@ -855,15 +849,6 @@ export default function CartPage({ cart, add, rem, setCart, cartCount, user, gue
           </div>
         )}
       </div>
-
-      {/* Auth Modal — unified */}
-      {showAuth && (
-        <AuthSystem
-          onDone={handleAuthSuccess}
-          onGuest={() => setShowAuth(false)}
-          onBusiness={() => setShowAuth(false)}
-        />
-      )}
 
       {/* Location picker */}
       {showLocPicker && (

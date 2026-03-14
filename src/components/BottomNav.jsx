@@ -67,7 +67,7 @@ export default function BottomNav({ cartCount }) {
               {isCart && cartCount > 0 && (
                 <span style={{
                   position:"absolute", top:0, right:"50%",
-                  transform:`translateX(10px) scale(${bounce?1.35:1})`,
+                  transform:`translateX(22px) scale(${bounce?1.35:1})`,
                   background:C.red, color:"white",
                   fontSize:9, fontWeight:800,
                   minWidth:17, height:17, borderRadius:9,
@@ -75,6 +75,7 @@ export default function BottomNav({ cartCount }) {
                   padding:"0 4px",
                   transition:"transform 0.2s ease",
                   boxShadow:"0 2px 6px rgba(200,16,46,0.35)",
+                  zIndex:2,
                 }}>
                   {cartCount > 99 ? "99+" : cartCount}
                 </span>

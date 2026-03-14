@@ -58,11 +58,17 @@ async function getCaptchaToken() {
 // ─── Validators ─────────────────────────────────────────────────────
 const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || "").trim());
 
-// SECURITY: We check 3 phone formats to avoid duplicate accounts
+// SECURITY: We check 4 phone formats to avoid duplicate accounts
+// canonical = "+972XXXXXXXXX" (E.164) — stored in DB always in this format
 const normalizePhone = (v) => {
   const d = (v || "").replace(/\D/g, "");
   const s = d.replace(/^972/, "").replace(/^0/, "");
-  return { raw: d, local: "0" + s, intl: "+972" + s };
+  return {
+    raw:       d,            // e.g. "0541234567" or "541234567"
+    local:     "0" + s,     // e.g. "0541234567"
+    intl:      "+972" + s,  // e.g. "+972541234567"  ← canonical (E.164)
+    intlNoPlus: "972" + s,  // e.g. "972541234567"   ← without + sign
+  };
 };
 const isPhone = (v) => {
   const d = (v || "").replace(/\D/g, "");
@@ -528,10 +534,10 @@ export default function AuthSystem({ onDone, onGuest, onBusiness }) {
     setMode(M.CHECKING);
     debounceRef.current = setTimeout(async () => {
       try {
-        const { local, intl } = normalizePhone(val);
-        // SECURITY: Try multiple phone formats to detect existing users
+        const { local, intl, intlNoPlus, raw } = normalizePhone(val);
+        // SECURITY: Try all 4 phone formats to detect existing users regardless of how they were saved
         let found = null;
-        for (const v of [val.replace(/\D/g,""), local, intl]) {
+        for (const v of [intl, local, intlNoPlus, raw]) {
           const { data } = await supabase
             .from("users")
             .select("email")
@@ -651,10 +657,9 @@ export default function AuthSystem({ onDone, onGuest, onBusiness }) {
     setError(""); setFieldErrors({});
     setMode(M.SUBMITTING);
 
-    // SECURITY: Check phone uniqueness (3 variants) before creating account
-    const { local, intl } = normalizePhone(phone);
-    const rawPhone = phone.replace(/\D/g, "");
-    for (const v of [rawPhone, local, intl]) {
+    // SECURITY: Check phone uniqueness (4 variants) before creating account
+    const { local, intl, intlNoPlus, raw: rawPhone } = normalizePhone(phone);
+    for (const v of [intl, local, intlNoPlus, rawPhone]) {
       const { data: pd } = await supabase
         .from("users")
         .select("id")
@@ -685,7 +690,7 @@ export default function AuthSystem({ onDone, onGuest, onBusiness }) {
     const meta = {
       firstName: regFirstName.trim(),
       lastName:  regLastName.trim(),
-      phone:     local,        // Store normalized local format
+      phone:     intl,         // Store canonical E.164 format: +972XXXXXXXXX
       gender:    regGender,
       age:       regAge,
     };

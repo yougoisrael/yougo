@@ -4,8 +4,8 @@ import { AdminAuthGuard } from "./lib/adminAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 
-// ✅ AuthSystem — النظام الموحد (يستبدل AuthPage + AuthSheet)
-import AuthSystem from "./pages/AuthSystem";
+// ✅ AuthSheet — Auth as BottomSheet (smooth like Haat/Wolt)
+import AuthSheet from "./pages/AuthSheet";
 
 import HomePage       from "./pages/HomePage";
 import RestaurantPage from "./pages/RestaurantPage";
@@ -156,18 +156,16 @@ export default function App() {
   // Business portal
   if (showBusiness) return <BusinessPortal onBack={() => setShowBusiness(false)}/>;
 
-  // ✅ AuthSystem — يظهر لما المستخدم يضغط تسجيل دخول
-  if (showAuth) return (
-    <AuthSystem
-      onDone={(u) => { setUser(u); setAuthed(true); setShowAuth(false); }}
-      onGuest={() => setShowAuth(false)}
-      onBusiness={() => { setShowAuth(false); setShowBusiness(true); }}
-    />
-  );
-
   // ✅ الكل يدخل مباشرة — الضيف والمسجل سوا
   return (
-    <Routes>
+    <>
+      <AuthSheet
+        open={showAuth}
+        onClose={() => setShowAuth(false)}
+        onDone={(u) => { setUser(u); setAuthed(true); setShowAuth(false); }}
+        onBusiness={() => { setShowAuth(false); setShowBusiness(true); }}
+      />
+      <Routes>
       {/* الصفحة الرئيسية — تفتح الخريطة لو ما اختار منطقة */}
       <Route path="/" element={
         <HomePage
@@ -224,5 +222,6 @@ export default function App() {
       }/>
       <Route path="*" element={<Navigate to="/" replace/>}/>
     </Routes>
+    </>
   );
 }

@@ -7,7 +7,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { C, IcoBack, IcoPlus, IcoMinus, IcoClose, IcoCheck, IcoShield, IcoPin, IcoCash, IcoCreditCard } from "../components/Icons";
+import { C, IcoBack, IcoPlus, IcoMinus, IcoClose, IcoCheck, IcoShield, IcoPin, IcoCash, IcoCreditCard, IcoCart } from "../components/Icons";
 import AuthSheet from "../components/AuthSheet";
 import { IcoCheckCircle, IcoChef, IcoScooter, IcoParty, IcoEmptyCart } from "../components/Icons";
 import BottomSheet from "../components/BottomSheet";

@@ -87,7 +87,7 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, zones: zonesOverride, cartCoun
   const [saved,  setSaved]  = useState(loadSaved);
   const [tap,    setTap]    = useState(null);
 
-  const [gpsDone, setGpsDone] = useState(false);
+  const [gpsDone, setGpsDone] = useState(() => { try { return !!localStorage.getItem("yougo_area"); } catch { return false; } });
 
   function detectGPS() {
     setBusy(true); setGpsErr(""); setGpsDone(false);
@@ -105,13 +105,13 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, zones: zonesOverride, cartCoun
         try { localStorage.setItem("yougo_area", JSON.stringify(norm)); } catch {}
         setGpsDone(true);
         setBusy(false);
-        setTimeout(() => onSaveAndGo({ zone, coords }), 700);
+        setTimeout(() => onSaveAndGo({ zone, coords }), 1500);
       },
       (e) => {
         setBusy(false);
         setGpsErr(e.code === 1 ? "אפשר גישה למיקום בהגדרות הדפדפן" : "לא ניתן לאתר מיקום — בחר ידנית");
       },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }
 
@@ -177,7 +177,7 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, zones: zonesOverride, cartCoun
 
         {/* GPS */}
         <div style={{ padding: "18px 16px 0" }}>
-          <button className="ygbtn" onClick={detectGPS} disabled={busy || gpsDone} style={{
+          <button className="ygbtn" onClick={detectGPS} disabled={busy} style={{
             width: "100%", border: "none", borderRadius: 18, padding: 0,
             background: gpsDone
               ? "linear-gradient(135deg,#16A34A,#14532D)"
@@ -215,10 +215,10 @@ function ZoneSelector({ onFamilyMap, onSaveAndGo, zones: zonesOverride, cartCoun
               </div>
               <div style={{ flex: 1, textAlign: "right" }}>
                 <div style={{ fontSize:15,fontWeight:900,color:busy?DARK:"white",lineHeight:1.2 }}>
-                  {busy ? "מאתר מיקום..." : gpsDone ? "✅ המיקום נשמר בהצלחה!" : "זיהוי אוטומטי של המיקום שלי"}
+                  {busy ? "מאתר מיקום..." : gpsDone ? "✅ מיקום נשמר — לחץ לעדכן" : "זיהוי אוטומטי של המיקום שלי"}
                 </div>
                 <div style={{ fontSize:11,color:busy?GRAY:"rgba(255,255,255,.75)",marginTop:3 }}>
-                  {busy ? "אנא המתן" : gpsDone ? "עובר למסעדות..." : "GPS · מיידי · מעבר ישיר למסעדות"}
+                  {busy ? "אנא המתן" : gpsDone ? "לחץ לעדכן מיקום" : "GPS · מיידי · מעבר ישיר למסעדות"}
                 </div>
               </div>
               {!busy && !gpsDone && (

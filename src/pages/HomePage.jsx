@@ -498,14 +498,12 @@ export default function HomePage({ user, guest, cartCount, selectedArea, onAreaS
   }, []);
 
   useEffect(() => {
-    if (!selectedArea?.id) { setLoading(false); return; }
     cachedQuery(
-      "restaurants:" + selectedArea.id,
-      () => supabase.from("restaurants").select("*")
-        .eq("active", true).eq("zone_id", selectedArea.id),
+      "restaurants:" + (selectedArea?.id || "all"),
+      () => supabase.from("restaurants").select("*").eq("active",true),
       TTL.restaurants
     ).then(({ data }) => { setRestaurants(data||[]); setLoading(false); });
-  }, [selectedArea?.id]);
+  }, []);
 
   const filtered = restaurants.filter(r => {
     if (searchQ) {

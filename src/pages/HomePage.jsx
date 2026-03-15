@@ -498,12 +498,14 @@ export default function HomePage({ user, guest, cartCount, selectedArea, onAreaS
   }, []);
 
   useEffect(() => {
+    if (!selectedArea?.id) { setLoading(false); return; }
     cachedQuery(
-      "restaurants:" + (selectedArea?.id || "all"),
-      () => supabase.from("restaurants").select("*").eq("active",true),
+      "restaurants:" + selectedArea.id,
+      () => supabase.from("restaurants").select("*")
+        .eq("active", true).eq("zone_id", selectedArea.id),
       TTL.restaurants
     ).then(({ data }) => { setRestaurants(data||[]); setLoading(false); });
-  }, []);
+  }, [selectedArea?.id]);
 
   const filtered = restaurants.filter(r => {
     if (searchQ) {
@@ -518,7 +520,7 @@ export default function HomePage({ user, guest, cartCount, selectedArea, onAreaS
   })).filter(g => g.items.length > 0);
 
   return (
-    <div style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", paddingBottom:"calc(80px + env(safe-area-inset-bottom, 0px))", paddingTop:100 }}>
+    <div style={{ fontFamily:"Arial,sans-serif", background:C.bg, minHeight:"100vh", maxWidth:430, margin:"0 auto", direction:"rtl", paddingBottom:"calc(80px + env(safe-area-inset-bottom, 0px))", paddingTop:160 }}>
 
       {/* SIDEBAR */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} navigate={navigate} />
